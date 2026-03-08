@@ -1,10 +1,16 @@
 import "server-only";
 
 import { NextResponse } from "next/server";
+import { randomUUID } from "crypto";
+import { setStreamToken } from "./store";
 
-// Rachel — clear, natural voice. Swap for any ElevenLabs voice ID.
-const VOICE_ID = "21m00Tcm4TlvDq8ikWAM";
+// Titan-style deep voice: Adam (Dominant, Firm).
+const VOICE_ID = "pNInz6obpgDQGcFmaJgB";
 
+/**
+ * POST returns a stream URL so the client can play audio as it streams (low latency).
+ * The client sets audio.src = streamUrl and plays; the GET stream endpoint pipes ElevenLabs.
+ */
 export async function POST(req: Request) {
   const apiKey = process.env.ELEVENLABS_API_KEY;
 
@@ -21,40 +27,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "text is required." }, { status: 400 });
   }
 
-  const response = await fetch(
-    `https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`,
-    {
-      method: "POST",
-      headers: {
-        Accept: "audio/mpeg",
-        "Content-Type": "application/json",
-        "xi-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        text,
-        model_id: "eleven_monolingual_v1",
-        voice_settings: {
-          stability: 0.5,
-          similarity_boost: 0.75,
-        },
-      }),
-    },
-  );
+  const token = randomUUID();
+  setStreamToken(token, text);
 
-  if (!response.ok) {
-    const body = await response.text();
-    return NextResponse.json(
-      { error: `ElevenLabs error: ${body}` },
-      { status: response.status },
-    );
-  }
-
-  const audioBuffer = await response.arrayBuffer();
-
-  return new NextResponse(audioBuffer, {
-    headers: {
-      "Content-Type": "audio/mpeg",
-      "Content-Length": String(audioBuffer.byteLength),
-    },
+  return NextResponse.json({
+    streamUrl: `/api/audio/stream?t=${token}`,
   });
 }

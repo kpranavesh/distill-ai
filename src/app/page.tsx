@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type AIComfortLevel = "skeptic" | "beginner" | "active" | "power";
 
@@ -447,9 +447,12 @@ export default function Home() {
   const [quizRequirements, setQuizRequirements] = useState<string[]>([]);
   const [showQuizResults, setShowQuizResults] = useState(false);
   const [briefingItems, setBriefingItems] = useState<BriefingItem[]>([]);
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [briefingError, setBriefingError] = useState<string | null>(null);
+  const [audioOverviewPlaying, setAudioOverviewPlaying] = useState(false);
+  const [audioOverviewLoading, setAudioOverviewLoading] = useState(false);
+  const audioOverviewRef = useRef<HTMLAudioElement | null>(null);
+  const audioOverviewUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!profile) return;
@@ -503,6 +506,15 @@ export default function Home() {
 
     return () => controller.abort();
   }, [profile]);
+
+  useEffect(() => {
+    return () => {
+      if (audioOverviewUrlRef.current) {
+        URL.revokeObjectURL(audioOverviewUrlRef.current);
+        audioOverviewUrlRef.current = null;
+      }
+    };
+  }, []);
 
   const personalisedBriefing = useMemo(() => {
     if (!profile) return [] as BriefingItem[];
@@ -897,33 +909,25 @@ export default function Home() {
                     <h3 className="text-sm font-semibold text-slate-50">🎧 Listen to your briefing</h3>
                     <p className="mt-1 text-sm text-slate-300">
                       Rather read it than scroll through it? Hit play and we'll walk you through
-                      today's updates in a few minutes. This prototype uses your browser's built-in
-                      voice — a full build would use{" "}
-                      <a
-                        href="https://github.com/souzatharsis/podcastfy"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sky-300 hover:text-sky-200"
-                      >
-                        Podcastfy
-                      </a>{" "}
-                      for a proper two-host podcast feel.
+                      today's updates with ElevenLabs voice (Titan-style). Play or pause anytime.
                     </p>
                   </div>
+                  <audio
+                    ref={audioOverviewRef}
+                    onPlay={() => setAudioOverviewPlaying(true)}
+                    onPause={() => setAudioOverviewPlaying(false)}
+                    onEnded={() => setAudioOverviewPlaying(false)}
+                  />
                   <button
                     type="button"
-                    onClick={() => {
-                      if (
-                        typeof window === "undefined" ||
-                        typeof window.speechSynthesis === "undefined"
-                      ) {
-                        alert(
-                          "Audio playback is not available in this environment. Try in a modern desktop or mobile browser.",
-                        );
+                    disabled={audioOverviewLoading}
+                    onClick={async () => {
+                      if (audioOverviewLoading) return;
+                      const el = audioOverviewRef.current;
+                      if (audioOverviewPlaying && el) {
+                        el.pause();
                         return;
                       }
-                      const synth = window.speechSynthesis;
-                      synth.cancel();
                       const text =
                         personalisedBriefing.length === 0
                           ? "You do not have any briefing items yet."
@@ -937,14 +941,53 @@ export default function Home() {
                               .join(
                                 " Next, here is another update that matters to you. ",
                               );
-                      const utterance = new SpeechSynthesisUtterance(text);
-                      utterance.rate = 1;
-                      utterance.pitch = 1;
-                      synth.speak(utterance);
+                      if (el?.src) {
+                        el.play();
+                        return;
+                      }
+                      setAudioOverviewLoading(true);
+                      try {
+                        const res = await fetch("/api/audio", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ text }),
+                          cache: "no-store",
+                        });
+                        const data = await res.json().catch(() => ({}));
+                        if (!res.ok) {
+                          throw new Error(data?.error || `Audio failed: ${res.status}`);
+                        }
+                        const streamUrl = data?.streamUrl;
+                        if (!streamUrl || typeof streamUrl !== "string") {
+                          throw new Error("Server did not return a stream URL.");
+                        }
+                        const fullUrl =
+                          streamUrl.startsWith("http") ? streamUrl : `${window.location.origin}${streamUrl}`;
+                        if (audioOverviewUrlRef.current)
+                          URL.revokeObjectURL(audioOverviewUrlRef.current);
+                        audioOverviewUrlRef.current = null;
+                        const audioEl = audioOverviewRef.current;
+                        if (audioEl) {
+                          audioEl.src = fullUrl;
+                          audioEl.load();
+                          await audioEl.play();
+                        }
+                      } catch (e) {
+                        console.error(e);
+                        alert(
+                          e instanceof Error ? e.message : "Could not load audio. Try again.",
+                        );
+                      } finally {
+                        setAudioOverviewLoading(false);
+                      }
                     }}
-                    className="shrink-0 inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-md shadow-emerald-500/40 hover:bg-emerald-400 sm:text-sm"
+                    className="shrink-0 inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-md shadow-emerald-500/40 hover:bg-emerald-400 disabled:opacity-60 disabled:pointer-events-none sm:text-sm"
                   >
-                    ▶ Play audio overview
+                    {audioOverviewLoading
+                      ? "Generating…"
+                      : audioOverviewPlaying
+                        ? "⏸ Pause"
+                        : "▶ Play audio overview"}
                   </button>
                 </div>
                 <div className="rounded-3xl bg-slate-900/80 p-5 ring-1 ring-slate-700/80 sm:p-6">
@@ -1012,82 +1055,52 @@ export default function Home() {
                               Ask Signal about this
                             </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setExpandedIds((prev) => {
-                                const next = new Set(prev);
-                                next.has(item.id) ? next.delete(item.id) : next.add(item.id);
-                                return next;
-                              })
-                            }
-                            className="w-full text-left"
-                          >
-                            <div className="flex items-start justify-between gap-2">
-                              <h3 className="text-sm font-semibold text-slate-50">
-                                {item.title}
-                              </h3>
-                              <div className="flex shrink-0 items-center gap-1.5">
-                                {item.relevanceScore !== undefined && (
-                                  <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-sm font-medium text-emerald-300 ring-1 ring-emerald-500/30">
-                                    {item.relevanceScore}% match
-                                  </span>
-                                )}
-                                <span className="text-sm text-slate-500">
-                                  {expandedIds.has(item.id) ? "▲" : "▼"}
-                                </span>
-                              </div>
-                            </div>
-                            {!expandedIds.has(item.id) && (
-                              <p className="mt-1.5 line-clamp-2 text-sm text-slate-400">
-                                {item.comfortSummary}
-                              </p>
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="text-sm font-semibold text-slate-50">
+                              {item.title}
+                            </h3>
+                            {item.relevanceScore !== undefined && (
+                              <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-sm font-medium text-emerald-300 ring-1 ring-emerald-500/30">
+                                {item.relevanceScore}% match
+                              </span>
                             )}
-                          </button>
+                          </div>
 
-                          {expandedIds.has(item.id) && (
-                            <>
-                              <p className="mt-2 text-sm leading-relaxed text-slate-300 sm:text-base">
-                                {item.comfortSummary}
-                              </p>
-                              <p className="mt-2 text-sm text-slate-200">
-                                <span className="font-medium text-emerald-300">
-                                  Why this matters to you:
-                                </span>{" "}
-                                {item.whyItMatters}
-                              </p>
-                              {item.tryThis && (
-                                <p className="mt-2 text-sm text-slate-300">
-                                  <span className="font-medium text-sky-300">Try this:</span>{" "}
-                                  {item.tryThis}
-                                </p>
-                              )}
-                              <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-400">
-                                <button
-                                  type="button"
-                                  className="rounded-full bg-slate-800 px-3 py-1 hover:bg-slate-700"
-                                >
-                                  This was useful
-                                </button>
-                                <button
-                                  type="button"
-                                  className="rounded-full bg-slate-900 px-3 py-1 ring-1 ring-slate-700 hover:bg-slate-800"
-                                >
-                                  Not relevant
-                                </button>
-                                {item.link && (
-                                  <a
-                                    href={item.link}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="inline-flex items-center gap-1 text-sky-300 hover:text-sky-200"
-                                  >
-                                    Read full article ↗
-                                  </a>
-                                )}
-                              </div>
-                            </>
+                          <p className="mt-2 text-sm leading-relaxed text-slate-300 sm:text-base">
+                            {item.comfortSummary}
+                          </p>
+                          {item.whyItMatters && (
+                            <p className="mt-2 text-sm text-slate-200">
+                              <span className="font-medium text-emerald-300">
+                                Why this matters to you:
+                              </span>{" "}
+                              {item.whyItMatters}
+                            </p>
                           )}
+                          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+                            <button
+                              type="button"
+                              className="rounded-full bg-slate-800 px-3 py-1 hover:bg-slate-700"
+                            >
+                              This was useful
+                            </button>
+                            <button
+                              type="button"
+                              className="rounded-full bg-slate-900 px-3 py-1 ring-1 ring-slate-700 hover:bg-slate-800"
+                            >
+                              Not relevant
+                            </button>
+                            {item.link && (
+                              <a
+                                href={item.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-sky-300 hover:text-sky-200"
+                              >
+                                Read full article ↗
+                              </a>
+                            )}
+                          </div>
                         </article>
                       ))}
                     </div>

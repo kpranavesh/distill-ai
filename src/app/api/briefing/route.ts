@@ -1,5 +1,6 @@
 import "server-only";
 
+import Anthropic from "@anthropic-ai/sdk";
 import Parser from "rss-parser";
 import { NextResponse } from "next/server";
 import { recommend } from "../../../../recommender/index";
@@ -71,75 +72,61 @@ function normaliseText(input: string | undefined | null): string {
   return input.replace(/\s+/g, " ").trim();
 }
 
-function buildWhyItMatters(opts: {
-  role: string;
-  industry: string;
-  comfort: AIComfortLevel;
-  goal: string;
-  aiTools: string[];
-  topic: string;
-}) {
-  const role = opts.role || "professional";
-  const industry = opts.industry || "your industry";
-  const topic = opts.topic.toLowerCase();
+async function buildWhyItMattersBatch(
+  profile: { role: string; industry: string; comfort: string; goal: string },
+  articles: Array<{ title: string; summary: string }>,
+): Promise<string[]> {
+  const role = profile.role || "professional";
+  const industry = profile.industry || "your industry";
+  const n = articles.length;
 
-  // Goal-based framing takes priority
-  if (opts.goal === "strategic-decisions") {
-    if (topic.includes("safety")) {
-      return `As a ${role}, the question isn’t AI safety in the abstract — it’s what liability or brand risk you carry if something goes wrong with AI in ${industry}.`;
-    }
-    return `The strategic question: does this shift your competitive position, your cost structure, or your hiring decisions in ${industry} over the next 12 months?`;
+  const prompt = `You write personalized newsletter blurbs for Signal, an AI news briefing app.
+
+User: ${role} in ${industry}, goal: ${profile.goal}, AI comfort: ${profile.comfort}
+
+For each article below, write exactly ONE sentence (under 22 words) explaining why this specific article matters to this specific user. Rules:
+- Reference what is actually in the article — not just the topic category
+- Make every sentence meaningfully different: vary the angle, the stakes, the phrasing
+- Be direct and concrete, no fluff
+- Do not start more than one sentence the same way
+
+Return only a JSON array of exactly ${n} strings, in the same order. No other text.
+
+Articles:
+${articles.map((a, i) => `${i + 1}. "${a.title}" — ${(a.summary || "").slice(0, 160)}`).join("\n")}`;
+
+  try {
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const message = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 1024,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const text = message.content[0].type === "text" ? message.content[0].text.trim() : "";
+    const parsed = JSON.parse(text);
+    if (Array.isArray(parsed) && parsed.length === n) return parsed;
+  } catch {
+    // fall through to fallbacks
   }
 
-  if (opts.goal === "find-tools") {
-    if (topic.includes("models")) {
-      return `New model releases often mean better tools or lower prices downstream. Worth checking if any tool you already use has quietly upgraded.`;
-    }
-    return `The practical question: does this change which AI tools are worth your time and budget right now?`;
-  }
-
-  if (opts.goal === "build") {
-    return `If you’re building with AI, read this for the API or capability changes — not just the headline. The useful detail is usually buried.`;
-  }
-
-  // Role-based framing as fallback
-  if (role.toLowerCase().includes("executive") || role.toLowerCase().includes("c-suite")) {
-    return `The strategic question: does this shift your competitive position, your cost structure, or your hiring decisions in ${industry}?`;
-  }
-
-  if (role.toLowerCase().includes("engineering") || role.toLowerCase().includes("technical")) {
-    if (topic.includes("safety")) {
-      return `Less relevant to your daily build — but useful when leadership asks you to sign off on AI governance policies.`;
-    }
-    return `Worth reading for the technical depth. The key question: does this unblock anything on your current roadmap, or is it a future capability to bookmark?`;
-  }
-
-  if (role.toLowerCase().includes("product")) {
-    return `Think about this from a roadmap lens: does it change what’s now feasible to build, or what your users will expect within six months?`;
-  }
-
-  if (role.toLowerCase().includes("sales") || role.toLowerCase().includes("marketing")) {
-    return `The angle that matters for you: how does this change what buyers expect, what you can automate in your pipeline, or what your pitch looks like?`;
-  }
-
-  if (role.toLowerCase().includes("legal") || role.toLowerCase().includes("compliance")) {
-    return `The compliance lens: does this create new liability, trigger existing policy, or require you to update your institution's AI use guidelines?`;
-  }
-
-  // Topic-based fallbacks
-  if (topic.includes("safety")) {
-    return `You don’t need to be an AI safety expert — but you do need a simple story for your team about how you’ll use AI without putting customers at risk.`;
-  }
-
-  if (topic.includes("research")) {
-    return `Most research posts won’t change your week directly, but they signal where tools will be in 6–18 months so you can make calmer long-term bets.`;
-  }
-
-  if (topic.includes("models")) {
-    return `New model releases quietly change what’s realistic to automate in your role. Even skimming the highlights helps you spot "this used to be hard, now it’s a button."`;
-  }
-
-  return `Your job isn’t to chase every headline — it’s to notice the 2–3 shifts that actually change how you work in ${industry}, and ignore the rest.`;
+  // Rule-based fallbacks per article
+  const role_l = role.toLowerCase();
+  return articles.map(({ title, summary }) => {
+    const corpus = `${title} ${summary}`.toLowerCase();
+    if (role_l.includes("legal") || role_l.includes("compliance"))
+      return `The compliance lens: does this create new liability or require updating your AI use policy in ${industry}?`;
+    if (role_l.includes("executive") || role_l.includes("leadership"))
+      return `Strategic question: does this shift your competitive position or cost structure in ${industry}?`;
+    if (role_l.includes("engineering") || role_l.includes("technical"))
+      return corpus.includes("api") || corpus.includes("sdk")
+        ? `Worth reading for the API or capability changes — the useful detail is usually buried.`
+        : `Does this unblock anything on your current roadmap, or is it a capability to bookmark?`;
+    if (role_l.includes("product"))
+      return `Does this change what users will expect, or what is now feasible to build within six months?`;
+    if (role_l.includes("marketing") || role_l.includes("sales"))
+      return `How does this change what buyers expect, or what you can automate in your pipeline?`;
+    return `Notice the 2–3 shifts here that actually change how you work in ${industry} — ignore the rest.`;
+  });
 }
 
 function buildComfortSummary(opts: {
@@ -214,7 +201,12 @@ export async function GET(req: Request) {
     8,
   );
 
-  const items = ranked.map((article) => ({
+  const whyItMatters = await buildWhyItMattersBatch(
+    { role, industry, comfort, goal },
+    ranked.map((a) => ({ title: a.title, summary: a.summary })),
+  );
+
+  const items = ranked.map((article, i) => ({
     id: article.id,
     title: article.title,
     topic: article.topic,
@@ -226,14 +218,7 @@ export async function GET(req: Request) {
       comfort,
       base: article.summary || article.title,
     }),
-    whyItMatters: buildWhyItMatters({
-      role,
-      industry,
-      comfort,
-      goal,
-      aiTools,
-      topic: article.topic,
-    }),
+    whyItMatters: whyItMatters[i] ?? "",
   }));
 
   return NextResponse.json(
