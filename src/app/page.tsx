@@ -31,6 +31,7 @@ interface BriefingItem {
   link?: string;
   published?: string | null;
   tryThis?: string;
+  relevanceScore?: number;
 }
 
 interface ChatMessage {
@@ -64,30 +65,45 @@ interface Tool {
   rating: number;
 }
 
-const ROLES = [
-  "Executive / C-Suite",
-  "Product",
-  "Engineering / Technical",
-  "Sales / Revenue",
-  "Marketing / Growth",
-  "Operations / Finance",
-  "Research / Analyst",
-  "Student / Early career",
-  "Other",
+// Role = job function (what you do). Industry = sector (where you work). No overlap.
+const ROLE_OPTIONS: { value: string; label: string; subtitle: string }[] = [
+  { value: "engineering", label: "Engineering / Technical", subtitle: "Software, systems, technical lead" },
+  { value: "product", label: "Product", subtitle: "Roadmap, requirements, prioritization" },
+  { value: "design", label: "Design", subtitle: "UX, UI, brand, creative" },
+  { value: "data", label: "Data / Analytics", subtitle: "Reporting, insights, data science" },
+  { value: "operations", label: "Operations", subtitle: "Processes, supply chain, internal ops" },
+  { value: "sales", label: "Sales / BD", subtitle: "Revenue, partnerships, outreach" },
+  { value: "marketing", label: "Marketing / Growth", subtitle: "Demand, content, campaigns" },
+  { value: "hr", label: "HR / People", subtitle: "Talent, culture, people ops" },
+  { value: "finance", label: "Finance / Accounting", subtitle: "Budget, reporting, controllership" },
+  { value: "legal", label: "Legal / Compliance", subtitle: "Contracts, risk, regulatory" },
+  { value: "executive", label: "Executive / Leadership", subtitle: "C-suite, VP, Director — strategy, teams" },
+  { value: "founder", label: "Founder / Solo", subtitle: "Run the business, wear many hats" },
+  { value: "clinical", label: "Clinical / Care delivery", subtitle: "Patient-facing: clinicians, care managers" },
+  { value: "educator", label: "Educator / Teaching", subtitle: "Teaching, curriculum, training" },
+  { value: "other", label: "Other", subtitle: "" },
 ];
 
-const INDUSTRIES = [
-  "Technology / Software",
-  "Financial Services",
-  "Healthcare / Life Sciences",
-  "Consulting / Professional Services",
-  "Media / Marketing / Creative",
-  "Education / Research",
-  "Retail / Consumer",
-  "Government / Public Sector",
-  "Manufacturing / Industrial",
-  "Other",
+const INDUSTRY_OPTIONS: { value: string; label: string; subtitle: string }[] = [
+  { value: "technology", label: "Technology / Software", subtitle: "SaaS, infra, dev tools" },
+  { value: "healthcare", label: "Healthcare / Life sciences", subtitle: "Providers, payers, pharma, health tech" },
+  { value: "financial-services", label: "Financial services", subtitle: "Banking, insurance, asset management" },
+  { value: "retail", label: "Retail / Consumer / E‑commerce", subtitle: "D2C, marketplaces, consumer brands" },
+  { value: "manufacturing", label: "Manufacturing / Industrial", subtitle: "Production, logistics, industrial" },
+  { value: "government", label: "Government / Public sector", subtitle: "Gov, public admin, defense" },
+  { value: "nonprofit", label: "Nonprofit / Social impact", subtitle: "NGOs, foundations, social enterprises" },
+  { value: "education", label: "Education", subtitle: "K–12, higher ed, edtech, training" },
+  { value: "professional-services", label: "Professional services / Consulting", subtitle: "Consulting, advisory, legal firms" },
+  { value: "media", label: "Media / Entertainment", subtitle: "Publishing, entertainment, agencies" },
+  { value: "other", label: "Other", subtitle: "" },
 ];
+
+function getRoleLabel(value: string): string {
+  return ROLE_OPTIONS.find((r) => r.value === value)?.label ?? value || "—";
+}
+function getIndustryLabel(value: string): string {
+  return INDUSTRY_OPTIONS.find((i) => i.value === value)?.label ?? value || "—";
+}
 
 const AI_TOOLS = [
   "ChatGPT",
@@ -337,8 +353,8 @@ function generateSignalReply(
   relatedItem?: BriefingItem,
 ): string {
   const intro = profile
-    ? `For you as a ${profile.role || "professional"} in ${
-        profile.industry || "your industry"
+    ? `For you as a ${getRoleLabel(profile.role) || "professional"} in ${
+        getIndustryLabel(profile.industry) || "your industry"
       }, `
     : "";
 
@@ -443,8 +459,8 @@ export default function Home() {
       setBriefingError(null);
       try {
         const params = new URLSearchParams({
-          role: profile?.role ?? "",
-          industry: profile?.industry ?? "",
+          role: getRoleLabel(profile?.role ?? "") || profile?.role ?? "",
+          industry: getIndustryLabel(profile?.industry ?? "") || profile?.industry ?? "",
           comfort: profile?.comfort ?? "beginner",
           goal: profile?.goals[0] ?? "stay-informed",
           aiTools: (profile?.aiTools ?? []).join(","),
@@ -465,6 +481,7 @@ export default function Home() {
           source: item.source,
           link: item.link,
           published: item.published,
+          relevanceScore: item.relevanceScore,
         }));
         if (!items.length) {
           setBriefingItems(STATIC_BRIEFING_EXAMPLES);
@@ -572,7 +589,7 @@ export default function Home() {
                   {profile.name || "Your Signal profile"}
                 </div>
                 <div className="text-slate-400">
-                  {profile.role || "Role not set"} ·{" "}
+                  {getRoleLabel(profile.role) || "Role not set"} ·{" "}
                   {COMFORT_LEVELS.find((c) => c.value === profile.comfort)?.label ??
                     "Beginner"}
                 </div>
@@ -620,6 +637,9 @@ export default function Home() {
                       <label className="text-xs font-medium text-slate-200">
                         What do you do?
                       </label>
+                      <p className="mt-0.5 text-[11px] text-slate-400">
+                        Your primary job function — what you spend most of your time on.
+                      </p>
                       <select
                         value={draftProfile.role}
                         onChange={(e) =>
@@ -628,9 +648,9 @@ export default function Home() {
                         className="mt-2 w-full rounded-2xl border border-slate-700/80 bg-slate-900/60 px-3 py-2.5 text-sm text-slate-50 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                       >
                         <option value="">Select your role</option>
-                        {ROLES.map((role) => (
-                          <option key={role} value={role}>
-                            {role}
+                        {ROLE_OPTIONS.map((r) => (
+                          <option key={r.value} value={r.value}>
+                            {r.label}
                           </option>
                         ))}
                       </select>
@@ -639,6 +659,9 @@ export default function Home() {
                       <label className="text-xs font-medium text-slate-200">
                         What industry are you in?
                       </label>
+                      <p className="mt-0.5 text-[11px] text-slate-400">
+                        The sector or domain you work in.
+                      </p>
                       <select
                         value={draftProfile.industry}
                         onChange={(e) =>
@@ -650,14 +673,21 @@ export default function Home() {
                         className="mt-2 w-full rounded-2xl border border-slate-700/80 bg-slate-900/60 px-3 py-2.5 text-sm text-slate-50 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                       >
                         <option value="">Select your industry</option>
-                        {INDUSTRIES.map((ind) => (
-                          <option key={ind} value={ind}>
-                            {ind}
+                        {INDUSTRY_OPTIONS.map((i) => (
+                          <option key={i.value} value={i.value}>
+                            {i.label}
                           </option>
                         ))}
                       </select>
                     </div>
                   </div>
+                  {draftProfile.role && draftProfile.industry && (
+                    <p className="mt-3 rounded-2xl bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200 ring-1 ring-emerald-500/30">
+                      We’ll personalize for a{" "}
+                      <span className="font-medium">{getRoleLabel(draftProfile.role)}</span> in{" "}
+                      <span className="font-medium">{getIndustryLabel(draftProfile.industry)}</span>.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -923,8 +953,8 @@ export default function Home() {
                         Here’s what matters today
                       </h2>
                       <p className="mt-1 text-xs text-slate-400">
-                        Picked for {profile.role || "you"} in{" "}
-                        {profile.industry || "your industry"} — tuned to your level.
+                        Picked for {getRoleLabel(profile.role) || "you"} in{" "}
+                        {getIndustryLabel(profile.industry) || "your industry"} — tuned to your level.
                       </p>
                     </div>
                     <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-300">
@@ -981,9 +1011,16 @@ export default function Home() {
                               Ask Signal about this
                             </button>
                           </div>
-                          <h3 className="text-sm font-semibold text-slate-50">
-                            {item.title}
-                          </h3>
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="text-sm font-semibold text-slate-50">
+                              {item.title}
+                            </h3>
+                            {item.relevanceScore !== undefined && (
+                              <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-300 ring-1 ring-emerald-500/30">
+                                {item.relevanceScore}% match
+                              </span>
+                            )}
+                          </div>
                           <p className="mt-2 text-xs text-slate-300 sm:text-sm">
                             {item.comfortSummary}
                           </p>
@@ -1117,11 +1154,11 @@ export default function Home() {
                     <ul className="mt-2 space-y-1 text-xs text-slate-300">
                       <li>
                         <span className="mr-1 text-emerald-400">•</span>
-                        Your role: {profile.role || "not set"}
+                        Your role: {getRoleLabel(profile.role) || "not set"}
                       </li>
                       <li>
                         <span className="mr-1 text-emerald-400">•</span>
-                        Industry: {profile.industry || "not set"}
+                        Industry: {getIndustryLabel(profile.industry) || "not set"}
                       </li>
                       <li>
                         <span className="mr-1 text-emerald-400">•</span>

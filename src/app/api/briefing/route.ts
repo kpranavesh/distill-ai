@@ -2,6 +2,7 @@ import "server-only";
 
 import Parser from "rss-parser";
 import { NextResponse } from "next/server";
+import { recommend } from "../../../../recommender/index";
 
 type AIComfortLevel = "skeptic" | "beginner" | "active" | "power";
 
@@ -175,13 +176,20 @@ export async function GET(req: Request) {
 
   const articles = await loadArticles();
 
-  const items = articles.slice(0, 8).map((article) => ({
+  const ranked = recommend(
+    { role, industry, comfort, goal: goal as any, aiTools },
+    articles,
+    8,
+  );
+
+  const items = ranked.map((article) => ({
     id: article.id,
     title: article.title,
     topic: article.topic,
     source: article.source,
     link: article.link,
     published: article.published,
+    relevanceScore: article.score,
     comfortSummary: buildComfortSummary({
       comfort,
       base: article.summary || article.title,
