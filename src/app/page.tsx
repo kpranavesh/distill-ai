@@ -165,7 +165,7 @@ const STATIC_BRIEFING_EXAMPLES: BriefingItem[] = [
   },
   {
     id: "static-stack",
-    title: "From “too many tools" to a personal AI stack",
+    title: 'From "too many tools" to a personal AI stack',
     topic: "AI tools for writing",
     comfortSummary:
       "Instead of trying every new app, many professionals are settling on a simple stack: one main assistant, one writing tool, and one tool for visuals.",
@@ -815,7 +815,7 @@ export default function Home() {
                   </li>
                   <li>
                     <span className="mr-1 text-emerald-400">•</span>
-                    A chat where you can ask “wait, what does this mean for me?" in plain English.
+                    A chat where you can ask "wait, what does this mean for me?" in plain English.
                   </li>
                   <li>
                     <span className="mr-1 text-emerald-400">•</span>
@@ -825,7 +825,7 @@ export default function Home() {
               </div>
               <div className="rounded-2xl bg-slate-900/80 px-4 py-3 text-xs text-slate-300 ring-1 ring-slate-700/80">
                 <p className="font-medium text-slate-100">
-                  “There’s a million AI updates a week.
+                  "There’s a million AI updates a week.
                 </p>
                 <p className="mt-1">
                   Signal tells you which three actually matter to you — and what
@@ -1052,7 +1052,7 @@ export default function Home() {
                       Got questions? Ask Signal anything.
                     </h2>
                     <p className="mt-1 text-xs text-slate-400">
-                      No jargon, no judgment. “What does this mean for my job?" is
+                      No jargon, no judgment. "What does this mean for my job?" is
                       a great place to start.
                     </p>
                   </div>
@@ -1062,11 +1062,11 @@ export default function Home() {
                         <p>
                           Try asking:{" "}
                           <span className="font-medium text-slate-100">
-                            “Where should I start with AI given my role?"
+                            "Where should I start with AI given my role?"
                           </span>{" "}
                           or{" "}
                           <span className="font-medium text-slate-100">
-                            “Explain the first briefing item like I’m brand new to
+                            "Explain the first briefing item like I’m brand new to
                             AI."
                           </span>
                         </p>
@@ -1170,9 +1170,9 @@ export default function Home() {
                                 : 1,
                               sender: "signal",
                               text:
-                                "You tapped into: “" +
+                                "You tapped into: "" +
                                 item.title +
-                                "”. Ask me what this really means for your work or how you could test it this week.",
+                                "". Ask me what this really means for your work or how you could test it this week.",
                               relatedItemId: item.id,
                             };
                             setChatMessages((prev) => [...prev, seed]);
@@ -1259,7 +1259,7 @@ export default function Home() {
                           rows={3}
                           value={quizTaskDescription}
                           onChange={(e) => setQuizTaskDescription(e.target.value)}
-                          placeholder='For example: “Draft better cold outreach emails to potential partners.”'
+                          placeholder='For example: "Draft better cold outreach emails to potential partners."'
                           className="w-full rounded-2xl border border-slate-700/80 bg-slate-950/60 px-3 py-2 text-xs text-slate-50 placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 sm:text-sm"
                         />
                         <p className="text-[11px] text-slate-400">
@@ -1278,7 +1278,7 @@ export default function Home() {
                           rows={2}
                           value={quizUsedTools}
                           onChange={(e) => setQuizUsedTools(e.target.value)}
-                          placeholder='For example: “I’ve tried ChatGPT but found the answers too generic.”'
+                          placeholder='For example: "I’ve tried ChatGPT but found the answers too generic."'
                           className="w-full rounded-2xl border border-slate-700/80 bg-slate-950/60 px-3 py-2 text-xs text-slate-50 placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 sm:text-sm"
                         />
                         <p className="text-[11px] text-slate-400">

@@ -50,60 +50,60 @@ function buildWhyItMatters(opts: {
   aiTools: string[];
   topic: string;
 }) {
-  const role = opts.role || “professional”;
-  const industry = opts.industry || “your industry”;
+  const role = opts.role || "professional";
+  const industry = opts.industry || "your industry";
   const topic = opts.topic.toLowerCase();
 
   // Goal-based framing takes priority
-  if (opts.goal === “strategic-decisions”) {
-    if (topic.includes(“safety”)) {
+  if (opts.goal === "strategic-decisions") {
+    if (topic.includes("safety")) {
       return `As a ${role}, the question isn’t AI safety in the abstract — it’s what liability or brand risk you carry if something goes wrong with AI in ${industry}.`;
     }
     return `The strategic question: does this shift your competitive position, your cost structure, or your hiring decisions in ${industry} over the next 12 months?`;
   }
 
-  if (opts.goal === “find-tools”) {
-    if (topic.includes(“models”)) {
+  if (opts.goal === "find-tools") {
+    if (topic.includes("models")) {
       return `New model releases often mean better tools or lower prices downstream. Worth checking if any tool you already use has quietly upgraded.`;
     }
     return `The practical question: does this change which AI tools are worth your time and budget right now?`;
   }
 
-  if (opts.goal === “build”) {
+  if (opts.goal === "build") {
     return `If you’re building with AI, read this for the API or capability changes — not just the headline. The useful detail is usually buried.`;
   }
 
   // Role-based framing as fallback
-  if (role.toLowerCase().includes(“executive”) || role.toLowerCase().includes(“c-suite”)) {
+  if (role.toLowerCase().includes("executive") || role.toLowerCase().includes("c-suite")) {
     return `The strategic question: does this shift your competitive position, your cost structure, or your hiring decisions in ${industry}?`;
   }
 
-  if (role.toLowerCase().includes(“engineering”) || role.toLowerCase().includes(“technical”)) {
-    if (topic.includes(“safety”)) {
+  if (role.toLowerCase().includes("engineering") || role.toLowerCase().includes("technical")) {
+    if (topic.includes("safety")) {
       return `Less relevant to your daily build — but useful when leadership asks you to sign off on AI governance policies.`;
     }
     return `Worth reading for the technical depth. The key question: does this unblock anything on your current roadmap, or is it a future capability to bookmark?`;
   }
 
-  if (role.toLowerCase().includes(“product”)) {
+  if (role.toLowerCase().includes("product")) {
     return `Think about this from a roadmap lens: does it change what’s now feasible to build, or what your users will expect within six months?`;
   }
 
-  if (role.toLowerCase().includes(“sales”) || role.toLowerCase().includes(“marketing”)) {
+  if (role.toLowerCase().includes("sales") || role.toLowerCase().includes("marketing")) {
     return `The angle that matters for you: how does this change what buyers expect, what you can automate in your pipeline, or what your pitch looks like?`;
   }
 
   // Topic-based fallbacks
-  if (topic.includes(“safety”)) {
+  if (topic.includes("safety")) {
     return `You don’t need to be an AI safety expert — but you do need a simple story for your team about how you’ll use AI without putting customers at risk.`;
   }
 
-  if (topic.includes(“research”)) {
+  if (topic.includes("research")) {
     return `Most research posts won’t change your week directly, but they signal where tools will be in 6–18 months so you can make calmer long-term bets.`;
   }
 
-  if (topic.includes(“models”)) {
-    return `New model releases quietly change what’s realistic to automate in your role. Even skimming the highlights helps you spot “this used to be hard, now it’s a button.”`;
+  if (topic.includes("models")) {
+    return `New model releases quietly change what’s realistic to automate in your role. Even skimming the highlights helps you spot "this used to be hard, now it’s a button."`;
   }
 
   return `Your job isn’t to chase every headline — it’s to notice the 2–3 shifts that actually change how you work in ${industry}, and ignore the rest.`;
