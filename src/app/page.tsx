@@ -474,6 +474,7 @@ export default function Home() {
   const audioChunksRef = useRef<string[]>([]);
   const audioChunkIndexRef = useRef(0);
   const nextStreamUrlRef = useRef<string | null>(null);
+  const audioOverviewBrowserFallbackRef = useRef(false);
 
   useEffect(() => {
     if (!profile) return;
@@ -1020,8 +1021,16 @@ export default function Home() {
                     onClick={async () => {
                       if (audioOverviewLoading) return;
                       const el = audioOverviewRef.current;
-                      if (audioOverviewPlaying && el) {
-                        el.pause();
+                      if (audioOverviewPlaying) {
+                        if (audioOverviewBrowserFallbackRef.current) {
+                          if (typeof window !== "undefined" && window.speechSynthesis) {
+                            window.speechSynthesis.cancel();
+                          }
+                          setAudioOverviewPlaying(false);
+                          audioOverviewBrowserFallbackRef.current = false;
+                        } else if (el) {
+                          el.pause();
+                        }
                         return;
                       }
                       const text =
@@ -1090,9 +1099,24 @@ export default function Home() {
                         }
                       } catch (e) {
                         console.error(e);
-                        alert(
-                          e instanceof Error ? e.message : "Could not load audio. Try again.",
-                        );
+                        const errMsg = e instanceof Error ? e.message : "Could not load audio.";
+                        if (
+                          typeof window !== "undefined" &&
+                          typeof window.speechSynthesis !== "undefined"
+                        ) {
+                          window.speechSynthesis.cancel();
+                          const utterance = new SpeechSynthesisUtterance(text);
+                          utterance.rate = 1;
+                          utterance.onend = () => {
+                            setAudioOverviewPlaying(false);
+                            audioOverviewBrowserFallbackRef.current = false;
+                          };
+                          audioOverviewBrowserFallbackRef.current = true;
+                          setAudioOverviewPlaying(true);
+                          window.speechSynthesis.speak(utterance);
+                        } else {
+                          alert(errMsg);
+                        }
                         audioChunksRef.current = [];
                       } finally {
                         setAudioOverviewLoading(false);

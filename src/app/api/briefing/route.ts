@@ -7,8 +7,8 @@ import { recommend } from "../../../../recommender/index";
 
 // Force dynamic rendering — no route-level caching
 export const dynamic = "force-dynamic";
-// Give Haiku + RSS fetches enough time on Vercel
-export const maxDuration = 30;
+// Give RSS fetches enough time on Vercel — bumped to 60s to handle a larger feed pool
+export const maxDuration = 60;
 
 // Headers that kill caching at every layer:
 // Cache-Control       — browser + proxies
@@ -156,7 +156,7 @@ async function loadArticles(): Promise<Article[]> {
     FEEDS.map(async (feed) => {
       try {
         const parsed = await parser.parseURL(feed.url);
-        return (parsed.items || []).slice(0, 15).map<Article>((item, index) => ({
+        return (parsed.items || []).slice(0, 20).map<Article>((item, index) => ({
           id: `${feed.id}-${item.guid || item.link || index}`,
           title: normaliseText(item.title || "Untitled"),
           link: item.link || "",
@@ -178,7 +178,7 @@ async function loadArticles(): Promise<Article[]> {
       return new Date(b.published).getTime() - new Date(a.published).getTime();
     return 0;
   });
-  return flat.slice(0, 40);
+  return flat.slice(0, 120);
 }
 
 export async function GET(req: Request) {
