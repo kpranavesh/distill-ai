@@ -99,10 +99,10 @@ const INDUSTRY_OPTIONS: { value: string; label: string; subtitle: string }[] = [
 ];
 
 function getRoleLabel(value: string): string {
-  return ROLE_OPTIONS.find((r) => r.value === value)?.label ?? value || "—";
+  return (ROLE_OPTIONS.find((r) => r.value === value)?.label ?? value) || "—";
 }
 function getIndustryLabel(value: string): string {
-  return INDUSTRY_OPTIONS.find((i) => i.value === value)?.label ?? value || "—";
+  return (INDUSTRY_OPTIONS.find((i) => i.value === value)?.label ?? value) || "—";
 }
 
 const AI_TOOLS = [
@@ -459,8 +459,8 @@ export default function Home() {
       setBriefingError(null);
       try {
         const params = new URLSearchParams({
-          role: getRoleLabel(profile?.role ?? "") || profile?.role ?? "",
-          industry: getIndustryLabel(profile?.industry ?? "") || profile?.industry ?? "",
+          role: profile?.role ?? "",
+          industry: profile?.industry ?? "",
           comfort: profile?.comfort ?? "beginner",
           goal: profile?.goals[0] ?? "stay-informed",
           aiTools: (profile?.aiTools ?? []).join(","),
