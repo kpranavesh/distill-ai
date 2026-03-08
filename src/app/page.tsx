@@ -16,6 +16,7 @@ interface UserProfile {
   industry: string;
   comfort: AIComfortLevel;
   goals: Goal[];
+  aiTools: string[];
   topicsMuted: string[];
   topicsBoosted: string[];
 }
@@ -64,29 +65,39 @@ interface Tool {
 }
 
 const ROLES = [
-  "Marketing manager",
-  "HR / People",
-  "Operations",
-  "Sales / GTM",
-  "Small business owner",
-  "Executive / Leader",
-  "Teacher / Educator",
-  "Healthcare",
-  "Government / Public sector",
-  "Creator / Solo operator",
+  "Executive / C-Suite",
+  "Product",
+  "Engineering / Technical",
+  "Sales / Revenue",
+  "Marketing / Growth",
+  "Operations / Finance",
+  "Research / Analyst",
+  "Student / Early career",
+  "Other",
 ];
 
 const INDUSTRIES = [
-  "Technology",
-  "Nonprofit / Social impact",
-  "Education",
-  "Healthcare",
-  "Finance",
-  "Retail / E‑commerce",
-  "Professional services",
-  "Manufacturing",
-  "Government",
+  "Technology / Software",
+  "Financial Services",
+  "Healthcare / Life Sciences",
+  "Consulting / Professional Services",
+  "Media / Marketing / Creative",
+  "Education / Research",
+  "Retail / Consumer",
+  "Government / Public Sector",
+  "Manufacturing / Industrial",
   "Other",
+];
+
+const AI_TOOLS = [
+  "ChatGPT",
+  "Claude",
+  "Gemini",
+  "Copilot",
+  "Cursor",
+  "Perplexity",
+  "Midjourney",
+  "None yet",
 ];
 
 const COMFORT_LEVELS: { value: AIComfortLevel; label: string; subtitle: string }[] =
@@ -399,8 +410,9 @@ export default function Home() {
     industry: "",
     comfort: "beginner",
     goals: ["stay-informed"],
-    topicsMuted: ["Chips & infrastructure"],
-    topicsBoosted: ["Productivity & automation"],
+    aiTools: [],
+    topicsMuted: [],
+    topicsBoosted: [],
   });
 
   const [activeSection, setActiveSection] = useState<
@@ -434,6 +446,8 @@ export default function Home() {
           role: profile?.role ?? "",
           industry: profile?.industry ?? "",
           comfort: profile?.comfort ?? "beginner",
+          goal: profile?.goals[0] ?? "stay-informed",
+          aiTools: (profile?.aiTools ?? []).join(","),
         }).toString();
         const res = await fetch(`/api/briefing?${params}`, {
           signal: controller.signal,
@@ -719,49 +733,33 @@ export default function Home() {
                 <div className="space-y-6">
                   <div>
                     <label className="text-xs font-medium text-slate-200">
-                      What should Signal show more or less of?
+                      Which AI tools do you already use?
                     </label>
                     <p className="mt-1 text-[11px] text-slate-400">
-                      Boost topics you care about and mute the ones that feel like
-                      noise.
+                      Select all that apply — Signal won't waste your time with "have you tried X?" if you already use it.
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {TOPICS.map((topic) => {
-                        const muted = draftProfile.topicsMuted.includes(topic);
-                        const boosted = draftProfile.topicsBoosted.includes(topic);
+                      {AI_TOOLS.map((tool) => {
+                        const selected = draftProfile.aiTools.includes(tool);
                         return (
                           <button
-                            key={topic}
+                            key={tool}
                             type="button"
-                            onClick={() => {
-                              if (muted) {
-                                setDraftProfile((p) => ({
-                                  ...p,
-                                  topicsMuted: p.topicsMuted.filter((t) => t !== topic),
-                                }));
-                              } else if (boosted) {
-                                setDraftProfile((p) => ({
-                                  ...p,
-                                  topicsBoosted: p.topicsBoosted.filter(
-                                    (t) => t !== topic,
-                                  ),
-                                }));
-                              } else {
-                                setDraftProfile((p) => ({
-                                  ...p,
-                                  topicsBoosted: [...p.topicsBoosted, topic],
-                                }));
-                              }
-                            }}
+                            onClick={() =>
+                              setDraftProfile((p) => ({
+                                ...p,
+                                aiTools: selected
+                                  ? p.aiTools.filter((t) => t !== tool)
+                                  : [...p.aiTools, tool],
+                              }))
+                            }
                             className={`rounded-full border px-3 py-1.5 text-xs ${
-                              boosted
+                              selected
                                 ? "border-emerald-400 bg-emerald-500/10 text-emerald-100"
-                                : muted
-                                  ? "border-slate-600 bg-slate-900/40 text-slate-500 line-through"
-                                  : "border-slate-700/80 bg-slate-900/60 text-slate-100 hover:border-slate-500"
+                                : "border-slate-700/80 bg-slate-900/60 text-slate-100 hover:border-slate-500"
                             }`}
                           >
-                            {topic}
+                            {tool}
                           </button>
                         );
                       })}
