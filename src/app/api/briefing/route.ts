@@ -83,13 +83,16 @@ ${articles.map((a, i) => `${i + 1}. "${a.title}" — ${(a.summary || "").slice(0
       max_tokens: 1024,
       messages: [{ role: "user", content: prompt }],
     });
-    const text = message.content[0].type === "text" ? message.content[0].text.trim() : "";
+    const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "";
+    // Strip markdown code fences if Haiku wraps the JSON
+    const text = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "").trim();
     const parsed = JSON.parse(text);
     if (Array.isArray(parsed) && parsed.length === n) {
       return { texts: parsed, source: "claude" };
     }
+    console.error("[briefing] Haiku returned wrong array length:", parsed.length, "expected", n);
   } catch (err) {
-    console.error("[briefing] Haiku batch failed:", err);
+    console.error("[briefing] Haiku batch failed:", err instanceof Error ? err.message : err);
   }
 
   // Rule-based fallback — still role-aware
