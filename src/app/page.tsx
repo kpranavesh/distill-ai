@@ -447,6 +447,7 @@ export default function Home() {
   const [quizRequirements, setQuizRequirements] = useState<string[]>([]);
   const [showQuizResults, setShowQuizResults] = useState(false);
   const [briefingItems, setBriefingItems] = useState<BriefingItem[]>([]);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [briefingError, setBriefingError] = useState<string | null>(null);
 
@@ -1011,57 +1012,82 @@ export default function Home() {
                               Ask Signal about this
                             </button>
                           </div>
-                          <div className="flex items-start justify-between gap-2">
-                            <h3 className="text-sm font-semibold text-slate-50">
-                              {item.title}
-                            </h3>
-                            {item.relevanceScore !== undefined && (
-                              <span className="shrink-0 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-300 ring-1 ring-emerald-500/30">
-                                {item.relevanceScore}% match
-                              </span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedIds((prev) => {
+                                const next = new Set(prev);
+                                next.has(item.id) ? next.delete(item.id) : next.add(item.id);
+                                return next;
+                              })
+                            }
+                            className="w-full text-left"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <h3 className="text-sm font-semibold text-slate-50">
+                                {item.title}
+                              </h3>
+                              <div className="flex shrink-0 items-center gap-1.5">
+                                {item.relevanceScore !== undefined && (
+                                  <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-300 ring-1 ring-emerald-500/30">
+                                    {item.relevanceScore}% match
+                                  </span>
+                                )}
+                                <span className="text-xs text-slate-500">
+                                  {expandedIds.has(item.id) ? "▲" : "▼"}
+                                </span>
+                              </div>
+                            </div>
+                            {!expandedIds.has(item.id) && (
+                              <p className="mt-1.5 line-clamp-2 text-xs text-slate-400">
+                                {item.comfortSummary}
+                              </p>
                             )}
-                          </div>
-                          <p className="mt-2 text-xs text-slate-300 sm:text-sm">
-                            {item.comfortSummary}
-                          </p>
-                          <p className="mt-2 text-xs text-slate-200">
-                            <span className="font-medium text-emerald-300">
-                              Why this matters to you:
-                            </span>{" "}
-                            {item.whyItMatters}
-                          </p>
-                          {item.tryThis && (
-                            <p className="mt-2 text-xs text-slate-300">
-                              <span className="font-medium text-sky-300">
-                                Try this:
-                              </span>{" "}
-                              {item.tryThis}
-                            </p>
+                          </button>
+
+                          {expandedIds.has(item.id) && (
+                            <>
+                              <p className="mt-2 text-xs text-slate-300 sm:text-sm">
+                                {item.comfortSummary}
+                              </p>
+                              <p className="mt-2 text-xs text-slate-200">
+                                <span className="font-medium text-emerald-300">
+                                  Why this matters to you:
+                                </span>{" "}
+                                {item.whyItMatters}
+                              </p>
+                              {item.tryThis && (
+                                <p className="mt-2 text-xs text-slate-300">
+                                  <span className="font-medium text-sky-300">Try this:</span>{" "}
+                                  {item.tryThis}
+                                </p>
+                              )}
+                              <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+                                <button
+                                  type="button"
+                                  className="rounded-full bg-slate-800 px-3 py-1 hover:bg-slate-700"
+                                >
+                                  This was useful
+                                </button>
+                                <button
+                                  type="button"
+                                  className="rounded-full bg-slate-900 px-3 py-1 ring-1 ring-slate-700 hover:bg-slate-800"
+                                >
+                                  Not relevant
+                                </button>
+                                {item.link && (
+                                  <a
+                                    href={item.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center gap-1 text-sky-300 hover:text-sky-200"
+                                  >
+                                    Read full article ↗
+                                  </a>
+                                )}
+                              </div>
+                            </>
                           )}
-                          <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
-                            <button
-                              type="button"
-                              className="rounded-full bg-slate-800 px-3 py-1 hover:bg-slate-700"
-                            >
-                              This was useful
-                            </button>
-                            <button
-                              type="button"
-                              className="rounded-full bg-slate-900 px-3 py-1 ring-1 ring-slate-700 hover:bg-slate-800"
-                            >
-                              Not relevant
-                            </button>
-                            {item.link && (
-                              <a
-                                href={item.link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-sky-300 hover:text-sky-200"
-                              >
-                                Read source ↗
-                              </a>
-                            )}
-                          </div>
                         </article>
                       ))}
                     </div>
