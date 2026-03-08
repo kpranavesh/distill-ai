@@ -5,6 +5,7 @@ import {
   STRATEGIC_KEYWORDS,
   TOOL_LAUNCH_KEYWORDS,
   BUILD_KEYWORDS,
+  LEGAL_KEYWORDS,
   INDUSTRY_KEYWORDS,
 } from "./keywords";
 
@@ -132,6 +133,15 @@ export function scoreArticle(
   if (role.includes("operations") || role.includes("finance")) {
     if (contains(corpus, ["automation", "workflow", "efficiency", "cost", "productivity", "operations"])) {
       factors.push({ factor: "role:ops/finance — efficiency content match", points: 12 });
+    }
+  }
+
+  if (role.includes("legal") || role.includes("compliance")) {
+    if (contains(corpus, LEGAL_KEYWORDS)) {
+      factors.push({ factor: "role:legal — policy/compliance content match", points: 15 });
+    }
+    if (isTechnical && !contains(corpus, LEGAL_KEYWORDS)) {
+      factors.push({ factor: "role:legal — pure technical penalty", points: -12 });
     }
   }
 

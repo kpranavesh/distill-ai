@@ -28,6 +28,16 @@ export const STRATEGIC_KEYWORDS = [
   "layoffs", "hiring", "executive", "ceo", "board",
 ];
 
+// Keywords that signal LEGAL / COMPLIANCE / GOVERNANCE content
+export const LEGAL_KEYWORDS = [
+  "compliance", "regulation", "regulatory", "policy", "legislation",
+  "law", "legal", "liability", "governance", "risk", "audit",
+  "privacy", "data protection", "gdpr", "ccpa", "ferpa", "hipaa",
+  "copyright", "intellectual property", "terms of service",
+  "accountability", "transparency", "bias", "ethics", "rights",
+  "lawsuit", "ruling", "court", "ban", "enforcement", "fine",
+];
+
 // Keywords that signal TOOL / PRODUCT LAUNCH content
 export const TOOL_LAUNCH_KEYWORDS = [
   "launch", "launches", "released", "new tool", "new feature",
@@ -66,6 +76,8 @@ export const INDUSTRY_KEYWORDS: Record<string, string[]> = {
   "Education / Research": [
     "education", "university", "research", "academic", "students",
     "learning", "edtech", "curriculum", "tutoring", "paper", "arxiv",
+    "higher education", "k-12", "school", "classroom", "faculty",
+    "plagiarism", "academic integrity", "ferpa", "student data",
   ],
   "Retail / Consumer": [
     "retail", "ecommerce", "e-commerce", "consumer", "shopping",

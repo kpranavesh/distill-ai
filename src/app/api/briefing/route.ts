@@ -29,6 +29,31 @@ const FEEDS = [
     url: "http://feeds.feedburner.com/blogspot/gJZg",
     topic: "Google AI & research",
   },
+  {
+    id: "techcrunch",
+    url: "https://techcrunch.com/category/artificial-intelligence/feed/",
+    topic: "Industry news",
+  },
+  {
+    id: "mit-tech-review",
+    url: "https://www.technologyreview.com/feed/",
+    topic: "Policy & society",
+  },
+  {
+    id: "the-markup",
+    url: "https://themarkup.org/feeds/rss.xml",
+    topic: "AI accountability",
+  },
+  {
+    id: "venturebeat",
+    url: "https://venturebeat.com/category/ai/feed",
+    topic: "Industry news",
+  },
+  {
+    id: "edsurge",
+    url: "https://www.edsurge.com/news.rss",
+    topic: "Education technology",
+  },
 ];
 
 interface Article {
@@ -95,6 +120,10 @@ function buildWhyItMatters(opts: {
 
   if (role.toLowerCase().includes("sales") || role.toLowerCase().includes("marketing")) {
     return `The angle that matters for you: how does this change what buyers expect, what you can automate in your pipeline, or what your pitch looks like?`;
+  }
+
+  if (role.toLowerCase().includes("legal") || role.toLowerCase().includes("compliance")) {
+    return `The compliance lens: does this create new liability, trigger existing policy, or require you to update your institution's AI use guidelines?`;
   }
 
   // Topic-based fallbacks
