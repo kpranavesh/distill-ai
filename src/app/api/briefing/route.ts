@@ -2,59 +2,40 @@ import "server-only";
 
 import Anthropic from "@anthropic-ai/sdk";
 import Parser from "rss-parser";
+import { unstable_noStore } from "next/cache";
 import { NextResponse } from "next/server";
 import { recommend } from "../../../../recommender/index";
 
-// Disable Next.js route caching — profile params must vary the response
+// Force dynamic rendering — no route-level caching
 export const dynamic = "force-dynamic";
+// Give Haiku + RSS fetches enough time on Vercel
+export const maxDuration = 30;
+
+// Headers that kill caching at every layer:
+// Cache-Control       — browser + proxies
+// CDN-Cache-Control   — Vercel edge network specifically
+// Surrogate-Control   — other CDN layers (Fastly, CloudFront, etc.)
+const NO_CACHE_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+  "CDN-Cache-Control": "no-store",
+  "Surrogate-Control": "no-store",
+  Pragma: "no-cache",
+  Expires: "0",
+};
 
 type AIComfortLevel = "skeptic" | "beginner" | "active" | "power";
 
-const parser = new Parser({
-  timeout: 8000,
-});
+const parser = new Parser({ timeout: 8000 });
 
 const FEEDS = [
-  {
-    id: "openai",
-    url: "https://openai.com/news/rss.xml",
-    topic: "Models & assistants",
-  },
-  {
-    id: "anthropic",
-    url: "https://anthropic.com/news/feed_anthropic.xml",
-    topic: "Safety & Claude",
-  },
-  {
-    id: "google-ai",
-    url: "http://feeds.feedburner.com/blogspot/gJZg",
-    topic: "Google AI & research",
-  },
-  {
-    id: "techcrunch",
-    url: "https://techcrunch.com/category/artificial-intelligence/feed/",
-    topic: "Industry news",
-  },
-  {
-    id: "mit-tech-review",
-    url: "https://www.technologyreview.com/feed/",
-    topic: "Policy & society",
-  },
-  {
-    id: "the-markup",
-    url: "https://themarkup.org/feeds/rss.xml",
-    topic: "AI accountability",
-  },
-  {
-    id: "venturebeat",
-    url: "https://venturebeat.com/category/ai/feed",
-    topic: "Industry news",
-  },
-  {
-    id: "edsurge",
-    url: "https://www.edsurge.com/news.rss",
-    topic: "Education technology",
-  },
+  { id: "openai",          url: "https://openai.com/news/rss.xml",                          topic: "Models & assistants"  },
+  { id: "anthropic",       url: "https://anthropic.com/news/feed_anthropic.xml",             topic: "Safety & Claude"      },
+  { id: "google-ai",       url: "http://feeds.feedburner.com/blogspot/gJZg",                 topic: "Google AI & research" },
+  { id: "techcrunch",      url: "https://techcrunch.com/category/artificial-intelligence/feed/", topic: "Industry news"    },
+  { id: "mit-tech-review", url: "https://www.technologyreview.com/feed/",                    topic: "Policy & society"     },
+  { id: "the-markup",      url: "https://themarkup.org/feeds/rss.xml",                       topic: "AI accountability"    },
+  { id: "venturebeat",     url: "https://venturebeat.com/category/ai/feed",                  topic: "Industry news"        },
+  { id: "edsurge",         url: "https://www.edsurge.com/news.rss",                          topic: "Education technology" },
 ];
 
 interface Article {
@@ -75,7 +56,7 @@ function normaliseText(input: string | undefined | null): string {
 async function buildWhyItMattersBatch(
   profile: { role: string; industry: string; comfort: string; goal: string },
   articles: Array<{ title: string; summary: string }>,
-): Promise<string[]> {
+): Promise<{ texts: string[]; source: "claude" | "fallback" }> {
   const role = profile.role || "professional";
   const industry = profile.industry || "your industry";
   const n = articles.length;
@@ -104,14 +85,16 @@ ${articles.map((a, i) => `${i + 1}. "${a.title}" — ${(a.summary || "").slice(0
     });
     const text = message.content[0].type === "text" ? message.content[0].text.trim() : "";
     const parsed = JSON.parse(text);
-    if (Array.isArray(parsed) && parsed.length === n) return parsed;
-  } catch {
-    // fall through to fallbacks
+    if (Array.isArray(parsed) && parsed.length === n) {
+      return { texts: parsed, source: "claude" };
+    }
+  } catch (err) {
+    console.error("[briefing] Haiku batch failed:", err);
   }
 
-  // Rule-based fallbacks per article
+  // Rule-based fallback — still role-aware
   const role_l = role.toLowerCase();
-  return articles.map(({ title, summary }) => {
+  const texts = articles.map(({ title, summary }) => {
     const corpus = `${title} ${summary}`.toLowerCase();
     if (role_l.includes("legal") || role_l.includes("compliance"))
       return `The compliance lens: does this create new liability or require updating your AI use policy in ${industry}?`;
@@ -127,31 +110,25 @@ ${articles.map((a, i) => `${i + 1}. "${a.title}" — ${(a.summary || "").slice(0
       return `How does this change what buyers expect, or what you can automate in your pipeline?`;
     return `Notice the 2–3 shifts here that actually change how you work in ${industry} — ignore the rest.`;
   });
+  return { texts, source: "fallback" };
 }
 
-function buildComfortSummary(opts: {
-  comfort: AIComfortLevel;
-  base: string;
-}) {
+function buildComfortSummary(opts: { comfort: AIComfortLevel; base: string }) {
   const base = normaliseText(opts.base);
   if (!base) return "";
-
-  if (opts.comfort === "skeptic") {
+  if (opts.comfort === "skeptic")
     return `${base} Think of this less as hype and more as a small, specific experiment you could run without committing your whole strategy.`;
-  }
-
-  if (opts.comfort === "beginner") {
+  if (opts.comfort === "beginner")
     return `${base} If any jargon shows up when you read the full post, you can safely skip it — focus on the examples and screenshots.`;
-  }
-
-  if (opts.comfort === "active") {
+  if (opts.comfort === "active")
     return `${base} The question for you is: does this meaningfully beat what you already use today, or is it just a sideways move?`;
-  }
-
   return `${base} Read this like a changelog: what concrete new capability does this unlock for you or your team this quarter?`;
 }
 
 async function loadArticles(): Promise<Article[]> {
+  // Opt out of Next.js data cache for all fetch calls in this scope
+  unstable_noStore();
+
   const results = await Promise.all(
     FEEDS.map(async (feed) => {
       try {
@@ -164,8 +141,7 @@ async function loadArticles(): Promise<Article[]> {
           published: item.isoDate || item.pubDate || null,
           topic: feed.topic,
           summary:
-            normaliseText(item.contentSnippet || item.content || item["content:encoded"]) ||
-            "",
+            normaliseText(item.contentSnippet || item.content || item["content:encoded"]) || "",
         }));
       } catch {
         return [];
@@ -174,24 +150,24 @@ async function loadArticles(): Promise<Article[]> {
   );
 
   const flat = results.flat().filter((a) => a.link && a.title);
-
   flat.sort((a, b) => {
-    if (a.published && b.published) {
+    if (a.published && b.published)
       return new Date(b.published).getTime() - new Date(a.published).getTime();
-    }
     return 0;
   });
-
   return flat.slice(0, 40);
 }
 
 export async function GET(req: Request) {
+  // Belt-and-suspenders: opt out of Next.js data cache at handler level too
+  unstable_noStore();
+
   const { searchParams } = new URL(req.url);
-  const role = searchParams.get("role") || "";
-  const industry = searchParams.get("industry") || "";
-  const comfort = (searchParams.get("comfort") || "beginner") as AIComfortLevel;
-  const goal = searchParams.get("goal") || "stay-informed";
-  const aiTools = (searchParams.get("aiTools") || "").split(",").filter(Boolean);
+  const role     = searchParams.get("role")    || "";
+  const industry = searchParams.get("industry")|| "";
+  const comfort  = (searchParams.get("comfort") || "beginner") as AIComfortLevel;
+  const goal     = searchParams.get("goal")    || "stay-informed";
+  const aiTools  = (searchParams.get("aiTools") || "").split(",").filter(Boolean);
 
   const articles = await loadArticles();
 
@@ -201,7 +177,7 @@ export async function GET(req: Request) {
     8,
   );
 
-  const whyItMatters = await buildWhyItMattersBatch(
+  const { texts: whyItMatters, source: whySource } = await buildWhyItMattersBatch(
     { role, industry, comfort, goal },
     ranked.map((a) => ({ title: a.title, summary: a.summary })),
   );
@@ -214,16 +190,15 @@ export async function GET(req: Request) {
     link: article.link,
     published: article.published,
     relevanceScore: article.score,
-    comfortSummary: buildComfortSummary({
-      comfort,
-      base: article.summary || article.title,
-    }),
+    comfortSummary: buildComfortSummary({ comfort, base: article.summary || article.title }),
     whyItMatters: whyItMatters[i] ?? "",
   }));
 
   return NextResponse.json(
-    { items, _debug: { role, industry, comfort, goal, aiTools } },
-    { headers: { "Cache-Control": "no-store" } },
+    {
+      items,
+      _debug: { role, industry, comfort, goal, aiTools, whySource, ts: Date.now() },
+    },
+    { headers: NO_CACHE_HEADERS },
   );
 }
-

@@ -417,6 +417,24 @@ function scoreToolForUser(
   return score;
 }
 
+/** Split script into smaller chunks so the first chunk can play in ~1–2s instead of waiting for the full script. */
+function chunkTextForAudio(text: string, maxChunkChars = 500): string[] {
+  if (!text.trim()) return [];
+  const sentences = text.split(/(?<=[.!?])\s+/);
+  const chunks: string[] = [];
+  let current = "";
+  for (const s of sentences) {
+    if (current.length + s.length + 1 <= maxChunkChars) {
+      current = current ? `${current} ${s}` : s;
+    } else {
+      if (current) chunks.push(current);
+      current = s;
+    }
+  }
+  if (current) chunks.push(current);
+  return chunks;
+}
+
 export default function Home() {
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -453,6 +471,9 @@ export default function Home() {
   const [audioOverviewLoading, setAudioOverviewLoading] = useState(false);
   const audioOverviewRef = useRef<HTMLAudioElement | null>(null);
   const audioOverviewUrlRef = useRef<string | null>(null);
+  const audioChunksRef = useRef<string[]>([]);
+  const audioChunkIndexRef = useRef(0);
+  const nextStreamUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!profile) return;
@@ -468,9 +489,11 @@ export default function Home() {
           comfort: profile?.comfort ?? "beginner",
           goal: profile?.goals[0] ?? "stay-informed",
           aiTools: (profile?.aiTools ?? []).join(","),
+          _t: Date.now().toString(),
         }).toString();
         const res = await fetch(`/api/briefing?${params}`, {
           signal: controller.signal,
+          cache: "no-store",
         });
         if (!res.ok) {
           throw new Error("Failed to load briefing");
@@ -513,8 +536,82 @@ export default function Home() {
         URL.revokeObjectURL(audioOverviewUrlRef.current);
         audioOverviewUrlRef.current = null;
       }
+      if (nextStreamUrlRef.current) {
+        URL.revokeObjectURL(nextStreamUrlRef.current);
+        nextStreamUrlRef.current = null;
+      }
     };
   }, []);
+
+  const playNextAudioChunk = useRef<() => void>(() => {});
+  playNextAudioChunk.current = () => {
+    const chunks = audioChunksRef.current;
+    const idx = audioChunkIndexRef.current;
+    const el = audioOverviewRef.current;
+
+    function setNextChunkUrl(url: string) {
+      if (audioOverviewUrlRef.current) URL.revokeObjectURL(audioOverviewUrlRef.current);
+      audioOverviewUrlRef.current = url;
+      audioChunkIndexRef.current = idx + 1;
+      if (el) {
+        el.src = url;
+        el.play();
+      }
+    }
+
+    function preFetchChunk(chunkIndex: number) {
+      if (chunkIndex >= chunks.length) return;
+      fetch("/api/audio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: chunks[chunkIndex] }),
+        cache: "no-store",
+      })
+        .then((r) => {
+          if (!r.ok || !(r.headers.get("content-type") ?? "").includes("audio/")) throw new Error("Not audio");
+          return r.arrayBuffer();
+        })
+        .then((buf) => {
+          const url = URL.createObjectURL(new Blob([buf], { type: "audio/mpeg" }));
+          nextStreamUrlRef.current = url;
+        })
+        .catch(() => { nextStreamUrlRef.current = null; });
+    }
+
+    if (nextStreamUrlRef.current) {
+      const url = nextStreamUrlRef.current;
+      nextStreamUrlRef.current = null;
+      setNextChunkUrl(url);
+      preFetchChunk(audioChunkIndexRef.current + 1);
+    } else if (idx + 1 < chunks.length) {
+      audioChunkIndexRef.current = idx + 1;
+      const nextChunk = chunks[audioChunkIndexRef.current];
+      fetch("/api/audio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: nextChunk }),
+        cache: "no-store",
+      })
+        .then((r) => {
+          if (!r.ok || !(r.headers.get("content-type") ?? "").includes("audio/")) throw new Error("Not audio");
+          return r.arrayBuffer();
+        })
+        .then((buf) => {
+          const url = URL.createObjectURL(new Blob([buf], { type: "audio/mpeg" }));
+          setNextChunkUrl(url);
+          preFetchChunk(audioChunkIndexRef.current + 1);
+        })
+        .catch(() => setAudioOverviewPlaying(false));
+    } else {
+      setAudioOverviewPlaying(false);
+      if (audioOverviewUrlRef.current) URL.revokeObjectURL(audioOverviewUrlRef.current);
+      audioOverviewUrlRef.current = null;
+      if (el) el.src = "";
+      audioChunksRef.current = [];
+      audioChunkIndexRef.current = 0;
+      nextStreamUrlRef.current = null;
+    }
+  };
 
   const personalisedBriefing = useMemo(() => {
     if (!profile) return [] as BriefingItem[];
@@ -916,7 +1013,7 @@ export default function Home() {
                     ref={audioOverviewRef}
                     onPlay={() => setAudioOverviewPlaying(true)}
                     onPause={() => setAudioOverviewPlaying(false)}
-                    onEnded={() => setAudioOverviewPlaying(false)}
+                    onEnded={() => playNextAudioChunk.current()}
                   />
                   <button
                     type="button"
@@ -945,38 +1042,58 @@ export default function Home() {
                         el.play();
                         return;
                       }
+                      const chunks = chunkTextForAudio(text);
+                      if (chunks.length === 0) return;
+                      audioChunksRef.current = chunks;
+                      audioChunkIndexRef.current = 0;
+                      nextStreamUrlRef.current = null;
                       setAudioOverviewLoading(true);
                       try {
                         const res = await fetch("/api/audio", {
                           method: "POST",
                           headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ text }),
+                          body: JSON.stringify({ text: chunks[0] }),
                           cache: "no-store",
                         });
-                        const data = await res.json().catch(() => ({}));
+                        const contentType = res.headers.get("content-type") ?? "";
                         if (!res.ok) {
-                          throw new Error(data?.error || `Audio failed: ${res.status}`);
+                          const err = await res.json().catch(() => ({}));
+                          throw new Error(err?.error || `Audio failed: ${res.status}`);
                         }
-                        const streamUrl = data?.streamUrl;
-                        if (!streamUrl || typeof streamUrl !== "string") {
-                          throw new Error("Server did not return a stream URL.");
+                        if (!contentType.includes("audio/")) {
+                          throw new Error("Server did not return audio. Check ELEVENLABS_API_KEY on Vercel.");
                         }
-                        const fullUrl =
-                          streamUrl.startsWith("http") ? streamUrl : `${window.location.origin}${streamUrl}`;
-                        if (audioOverviewUrlRef.current)
-                          URL.revokeObjectURL(audioOverviewUrlRef.current);
-                        audioOverviewUrlRef.current = null;
+                        const buf = await res.arrayBuffer();
+                        const url = URL.createObjectURL(new Blob([buf], { type: "audio/mpeg" }));
+                        if (audioOverviewUrlRef.current) URL.revokeObjectURL(audioOverviewUrlRef.current);
+                        audioOverviewUrlRef.current = url;
                         const audioEl = audioOverviewRef.current;
                         if (audioEl) {
-                          audioEl.src = fullUrl;
+                          audioEl.src = url;
                           audioEl.load();
                           await audioEl.play();
+                        }
+                        if (chunks.length > 1) {
+                          fetch("/api/audio", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({ text: chunks[1] }),
+                            cache: "no-store",
+                          })
+                            .then((r) => {
+                              if (!r.ok || !(r.headers.get("content-type") ?? "").includes("audio/")) return;
+                              return r.arrayBuffer();
+                            })
+                            .then((buf2) => {
+                              if (buf2) nextStreamUrlRef.current = URL.createObjectURL(new Blob([buf2], { type: "audio/mpeg" }));
+                            });
                         }
                       } catch (e) {
                         console.error(e);
                         alert(
                           e instanceof Error ? e.message : "Could not load audio. Try again.",
                         );
+                        audioChunksRef.current = [];
                       } finally {
                         setAudioOverviewLoading(false);
                       }
