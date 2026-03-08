@@ -1169,10 +1169,7 @@ export default function Home() {
                                 ? chatMessages[chatMessages.length - 1].id + 1
                                 : 1,
                               sender: "signal",
-                              text:
-                                "You tapped into: "" +
-                                item.title +
-                                "". Ask me what this really means for your work or how you could test it this week.",
+                              text: `You tapped into: "${item.title}". Ask me what this really means for your work or how you could test it this week.`,
                               relatedItemId: item.id,
                             };
                             setChatMessages((prev) => [...prev, seed]);
