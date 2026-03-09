@@ -38,7 +38,7 @@ interface BriefingItem {
 
 interface ChatMessage {
   id: number;
-  sender: "user" | "signal";
+  sender: "user" | "distill";
   text: string;
   relatedItemId?: string;
 }
@@ -349,7 +349,7 @@ function formatDate(value?: string | null): string | null {
   });
 }
 
-function generateSignalReply(
+function generateDistillReply(
   userText: string,
   profile: UserProfile | null,
   relatedItem?: BriefingItem,
@@ -569,7 +569,7 @@ export default function Home() {
         }
       } catch {
         setBriefingError(
-          "Signal couldn’t reach its sources right now. Here’s a sample briefing instead.",
+          "Distill couldn’t reach its sources right now. Here’s a sample briefing instead.",
         );
         setBriefingItems(STATIC_BRIEFING_EXAMPLES);
       } finally {
@@ -716,8 +716,8 @@ export default function Home() {
     };
     const reply: ChatMessage = {
       id: idBase + 1,
-      sender: "signal",
-      text: generateSignalReply(chatInput, profile, activeItem ?? undefined),
+      sender: "distill",
+      text: generateDistillReply(chatInput, profile, activeItem ?? undefined),
       relatedItemId: activeItem?.id,
     };
     setChatMessages((prev) => [...prev, userMessage, reply]);
@@ -744,10 +744,10 @@ export default function Home() {
               Hackathon Prototype · March 7, 2026
             </div>
             <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-50 sm:text-4xl">
-              Signal — your AI briefing, zero noise.
+              Distill AI — your AI briefing, zero noise.
             </h1>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-300 sm:text-base">
-              Drop in your role and comfort level — Signal cuts through the weekly AI
+              Drop in your role and comfort level — Distill cuts through the weekly AI
               noise to show you the 2–3 updates that actually change how you work.
               Ask it anything, or find the right tools for your life.
             </p>
@@ -759,7 +759,7 @@ export default function Home() {
               </div>
               <div>
                 <div className="font-medium">
-                  {profile.name || "Your Signal profile"}
+                  {profile.name || "Your Distill AI profile"}
                 </div>
                 <div className="text-slate-400">
                   {getRoleLabel(profile.role) || "Role not set"} ·{" "}
@@ -798,7 +798,7 @@ export default function Home() {
                 <div className="space-y-6">
                   <div>
                     <label className="text-sm font-medium text-slate-200">
-                      What should Signal call you?
+                      What should Distill call you?
                     </label>
                     <input
                       value={draftProfile.name}
@@ -943,7 +943,7 @@ export default function Home() {
                       Which AI tools do you already use?
                     </label>
                     <p className="mt-1 text-sm text-slate-400">
-                      Select all that apply — Signal won't waste your time with "have you tried X?" if you already use it.
+                      Select all that apply — Distill won't waste your time with "have you tried X?" if you already use it.
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {AI_TOOLS.map((tool) => {
@@ -1003,7 +1003,7 @@ export default function Home() {
                     onClick={handleCompleteOnboarding}
                     className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-sm font-medium text-slate-950 shadow-lg shadow-emerald-500/40 hover:bg-emerald-400"
                   >
-                    Generate my Signal
+                    Generate my briefing
                     <span>✨</span>
                   </button>
                 )}
@@ -1035,7 +1035,7 @@ export default function Home() {
                   "There’s a million AI updates a week.
                 </p>
                 <p className="mt-1">
-                  Signal tells you which three actually matter to you — and what
+                  Distill tells you which three actually matter to you — and what
                   to do about them."
                 </p>
               </div>
@@ -1047,7 +1047,7 @@ export default function Home() {
               <nav className="flex flex-1 gap-2 rounded-full bg-slate-900/80 p-1 text-sm ring-1 ring-slate-700/80 sm:text-sm">
                 {[
                   { id: "briefing", label: "Your briefing" },
-                  { id: "chat", label: "Ask Signal" },
+                  { id: "chat", label: "Ask Distill" },
                   { id: "tools", label: "AI Tool Recommender" },
                 ].map((tab) => (
                   <button
@@ -1263,7 +1263,7 @@ export default function Home() {
                               }}
                               className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-100 hover:bg-slate-700"
                             >
-                              Ask Signal about this
+                              Ask Distill about this
                             </button>
                           </div>
                           <div className="flex items-start justify-between gap-2">
@@ -1336,7 +1336,7 @@ export default function Home() {
                 <div className="flex flex-col rounded-3xl bg-slate-900/80 p-5 ring-1 ring-slate-700/80 sm:p-6">
                   <div className="mb-3">
                     <h2 className="text-base font-semibold text-slate-50 sm:text-lg">
-                      Got questions? Ask Signal anything.
+                      Got questions? Ask Distill anything.
                     </h2>
                     <p className="mt-1 text-sm text-slate-400">
                       No jargon, no judgment. "What does this mean for my job?" is
@@ -1383,7 +1383,7 @@ export default function Home() {
                       rows={2}
                       value={chatInput}
                       onChange={(e) => setChatInput(e.target.value)}
-                      placeholder="Ask Signal a question in plain English..."
+                      placeholder="Ask Distill a question in plain English..."
                       className="min-h-[48px] flex-1 resize-none rounded-2xl border border-slate-700/80 bg-slate-950/60 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 sm:text-sm"
                     />
                     <button
@@ -1399,7 +1399,7 @@ export default function Home() {
                 <div className="space-y-4">
                   <div className="rounded-3xl bg-slate-900/80 p-5 ring-1 ring-slate-700/80 sm:p-6">
                     <h3 className="text-sm font-semibold text-slate-50">
-                      Context Signal already knows
+                      Context Distill already knows
                     </h3>
                     <ul className="mt-2 space-y-1 text-sm leading-relaxed text-slate-300">
                       <li>
@@ -1433,7 +1433,7 @@ export default function Home() {
                       </li>
                     </ul>
                     <p className="mt-3 text-sm text-slate-400">
-                      You don’t need to re‑explain this each time — Signal carries
+                      You don’t need to re‑explain this each time — Distill carries
                       it through the conversation.
                     </p>
                   </div>
@@ -1455,7 +1455,7 @@ export default function Home() {
                               id: chatMessages.length
                                 ? chatMessages[chatMessages.length - 1].id + 1
                                 : 1,
-                              sender: "signal",
+                              sender: "distill",
                               text: `You tapped into: "${item.title}". Ask me what this really means for your work or how you could test it this week.`,
                               relatedItemId: item.id,
                             };
@@ -1668,7 +1668,7 @@ export default function Home() {
                     </h3>
                     {!showQuizResults ? (
                       <p className="mt-2 text-sm text-slate-300">
-                        Answer the questions on the left and Signal will suggest a
+                        Answer the questions on the left and Distill will suggest a
                         short list of tools that make sense for your first (or next)
                         use case.
                       </p>
@@ -1708,7 +1708,7 @@ export default function Home() {
                             </p>
                             <p className="mt-2 text-slate-200">
                               <span className="font-medium text-emerald-300">
-                                Why Signal picked this:
+                                Why Distill picked this:
                               </span>{" "}
                               {tool.bestFor}
                             </p>
@@ -1732,7 +1732,7 @@ export default function Home() {
                         ))}
                         {recommendedTools.length === 0 && (
                           <p className="text-sm text-slate-300">
-                            Your answers are quite broad, so Signal would likely
+                            Your answers are quite broad, so Distill would likely
                             suggest starting with a general‑purpose assistant like
                             Claude or ChatGPT, then layering on a research or image
                             tool once you’re comfortable.

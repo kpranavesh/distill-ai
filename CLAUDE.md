@@ -93,7 +93,7 @@ Located in `recommender/`. Keyword-based scoring, 0–100 per article.
 
 ## RSS feeds
 
-8 feeds as of March 2026. Topics are used both for display and scoring.
+13 feeds as of March 2026. Actively growing — adding sector-specific feeds for diverse coverage. Topics are used both for display and scoring.
 
 | Feed | Topic |
 |------|-------|
@@ -101,18 +101,40 @@ Located in `recommender/`. Keyword-based scoring, 0–100 per article.
 | Anthropic | Safety & Claude |
 | Google AI | Google AI & research |
 | TechCrunch AI | Industry news |
+| The Verge | Industry news |
+| VentureBeat AI | Industry news |
 | MIT Technology Review | Policy & society |
 | The Markup | AI accountability |
-| VentureBeat AI | Industry news |
+| Wired Design | Design & creative tools |
+| CreativeBloq | Design & creative tools |
+| Variety | Media & entertainment |
+| Deadline | Media & entertainment |
 | EdSurge | Education technology |
 
-**Known limitation:** All feeds are AI-focused. Industry-specific scoring (Healthcare, Finance, etc.) fires weakly because articles don't contain sector keywords. Fix: add sector-specific feeds per vertical.
+**To add a feed:** append an entry to the `FEEDS` array in `route.ts`. No other changes needed.
+
+**Known limitation:** Industry-specific scoring (Healthcare, Finance, etc.) fires weakly when feeds don't contain sector keywords. Fix: add sector-specific feeds per vertical.
+
+---
+
+## Article pool caps (route.ts)
+
+| Setting | Value |
+|---------|-------|
+| Articles fetched per feed | 20 |
+| Total candidate pool (after recency sort) | 120 |
+| Articles returned to user | 8 (top-scored) |
+| Vercel `maxDuration` | 60s |
+
+As feed count grows, the pool stays capped at 120 most-recent articles. Scoring 120 articles is near-instant — the bottleneck is always the slowest RSS feed (parallel fetches).
 
 ---
 
 ## "Why it matters" generation
 
-Single Claude Haiku call per briefing load. Sends all 8 ranked articles + user profile in one prompt. Returns a JSON array of 8 unique sentences, each referencing the actual article content.
+Single Groq (Llama 3.1 8B) call per briefing load. Sends all 8 ranked articles + user profile in one prompt. Returns a JSON array of 8 unique sentences, each referencing the actual article content.
+
+Note: Anthropic API was removed — Claude.ai subscription ≠ API credits. Groq free tier is used instead.
 
 `_debug.whySource` in the API response will be `"claude"` or `"fallback"`. If you see `"fallback"`, the Groq call failed — check `GROQ_API_KEY` is set in Vercel. The Groq free tier resets daily; if it hits rate limits it degrades to fallback gracefully.
 

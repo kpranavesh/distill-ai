@@ -1,6 +1,6 @@
 # Auth setup (Google OAuth + Supabase)
 
-Signal uses **Supabase Auth** with **Google OAuth** as the primary login. Follow these steps to connect your app.
+Distill AI uses **Supabase Auth** with **Google OAuth** as the primary login. Follow these steps to connect your app.
 
 ## 1. Supabase project
 
@@ -35,11 +35,11 @@ Signal uses **Supabase Auth** with **Google OAuth** as the primary login. Follow
 6. Create and copy **Client ID** and **Client secret** into Supabase (Authentication → Providers → Google).
 
 **Show your app name (not Supabase URL) on the consent screen:**  
-In Google Cloud Console go to **APIs & Services → OAuth consent screen**. Set **Application name** (e.g. “Signal”) and optionally an app logo. Users will see this name and logo on the consent screen. The “Continue to …” line may still show Supabase’s domain for security; the app name appears as the main branding.
+In Google Cloud Console go to **APIs & Services → OAuth consent screen**. Set **Application name** (e.g. “Distill AI”) and optionally an app logo. Users will see this name and logo on the consent screen. The “Continue to …” line may still show Supabase’s domain for security; the app name appears as the main branding.
 
 ## 4. Local env
 
-In `signal-app/.env.local`:
+In your app's `.env.local` (e.g. `signal-app/.env.local` or your project folder):
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
@@ -76,6 +76,21 @@ CREATE POLICY "Users can read own profile"
 CREATE POLICY "Users can update own profile"
   ON user_profiles FOR ALL USING (auth.uid() = id);
 ```
+
+---
+
+## Manual: where the app is still named externally
+
+These are **external services** where the app name appears. The codebase now uses **Distill AI**; update these by hand so users see the right name:
+
+- **Google Cloud Console → APIs & Services → OAuth consent screen**  
+  Set **Application name** to **Distill AI** (and optionally upload an app logo). This is what users see on the “Sign in with Google” consent screen.
+
+- **Supabase**  
+  Project URL and redirect URLs do not contain the app name; no change needed there.
+
+- **Vercel / hosting**  
+  If you have a project or site name there (e.g. “signal-app”), consider renaming to something like “distill-ai” for consistency; optional.
 
 ---
 

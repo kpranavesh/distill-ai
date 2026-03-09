@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Signal — Your AI Briefing",
+  title: "Distill AI — Your AI Briefing",
   description:
-    "Signal is your personalized AI briefing: three updates that actually matter to your work, plus a friendly chat and tailored AI tool recommendations.",
+    "Distill AI is your personalized AI briefing: three updates that actually matter to your work, plus a friendly chat and tailored AI tool recommendations.",
 };
 
 export default function RootLayout({

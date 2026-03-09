@@ -43,7 +43,7 @@ function LoginForm() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-slate-100 p-4">
       <div className="w-full max-w-sm rounded-2xl bg-slate-900/80 p-8 ring-1 ring-slate-700/80">
         <h1 className="text-xl font-semibold text-slate-50 text-center mb-2">
-          Sign in to Signal
+          Sign in to Distill AI
         </h1>
         <p className="text-sm text-slate-400 text-center mb-6">
           Use your Google account to continue. Your profile will be saved across devices.
@@ -62,7 +62,7 @@ function LoginForm() {
           {loading ? "Redirecting…" : "Continue with Google"}
         </button>
         <p className="mt-6 text-xs text-slate-500 text-center">
-          By signing in you agree to use of your account for Signal. We only access your email and name.
+          By signing in you agree to use of your account for Distill AI. We only access your email and name.
         </p>
       </div>
     </div>

@@ -72,7 +72,7 @@ async function buildWhyItMattersBatch(
   const industry = profile.industry || "your industry";
   const n = articles.length;
 
-  const prompt = `You write personalized newsletter blurbs for Signal, an AI news briefing app.
+  const prompt = `You write personalized newsletter blurbs for Distill AI, an AI news briefing app.
 
 User: ${role} in ${industry}, goal: ${profile.goal}, AI comfort: ${profile.comfort}
 
