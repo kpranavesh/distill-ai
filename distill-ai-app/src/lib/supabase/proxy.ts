@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 
 /**
  * Auth proxy: refresh session and redirect unauthenticated users to /login,
- * or redirect authenticated users away from /login. Runs in Edge (e.g. Vercel).
+ * or redirect authenticated users away from /login.
  */
 export async function runAuthProxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
