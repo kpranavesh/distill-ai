@@ -4,7 +4,7 @@ import Parser from "rss-parser";
 import { unstable_noStore } from "next/cache";
 import { NextResponse } from "next/server";
 import { recommend } from "../../../../recommender/index";
-import type { Goal } from "../../../../recommender/types";
+import type { Goal, DepthPreference, SeniorityLevel } from "../../../../recommender/types";
 import { getAuthUser } from "@/lib/supabase/auth";
 
 // Force dynamic rendering — no route-level caching
@@ -24,6 +24,7 @@ const NO_CACHE_HEADERS = {
   Expires: "0",
 };
 
+// kept for buildComfortSummary compat — maps depth to display text
 type AIComfortLevel = "skeptic" | "beginner" | "active" | "power";
 
 const parser = new Parser({ timeout: 8000 });
@@ -31,8 +32,8 @@ const parser = new Parser({ timeout: 8000 });
 const FEEDS = [
   // AI company blogs
   { id: "openai",          url: "https://openai.com/news/rss.xml",                               topic: "Models & assistants"    },
-  { id: "anthropic",       url: "https://anthropic.com/news/feed_anthropic.xml",                  topic: "Safety & Claude"        },
-  { id: "google-ai",       url: "http://feeds.feedburner.com/blogspot/gJZg",                      topic: "Google AI & research"   },
+  { id: "import-ai",       url: "https://importai.substack.com/feed",                             topic: "AI research"            },
+  { id: "last-week-in-ai", url: "https://lastweekin.ai/feed",                                     topic: "AI research"            },
   // Broad industry
   { id: "techcrunch",      url: "https://techcrunch.com/category/artificial-intelligence/feed/",  topic: "Industry news"          },
   { id: "the-verge",       url: "https://www.theverge.com/rss/index.xml",                         topic: "Industry news"          },
@@ -41,13 +42,20 @@ const FEEDS = [
   { id: "mit-tech-review", url: "https://www.technologyreview.com/feed/",                         topic: "Policy & society"       },
   { id: "the-markup",      url: "https://themarkup.org/feeds/rss.xml",                            topic: "AI accountability"      },
   // Design & creative
-  { id: "wired-design",    url: "https://www.wired.com/feed/category/design/latest/rss",          topic: "Design & creative tools"},
   { id: "creativebloq",    url: "https://www.creativebloq.com/feeds/all.xml",                     topic: "Design & creative tools"},
   // Media & entertainment
   { id: "variety",         url: "https://variety.com/feed/",                                      topic: "Media & entertainment"  },
   { id: "deadline",        url: "https://deadline.com/feed/",                                     topic: "Media & entertainment"  },
-  // Education
-  { id: "edsurge",         url: "https://www.edsurge.com/news.rss",                               topic: "Education technology"   },
+  // Biotech & life sciences
+  { id: "stat-news",       url: "https://www.statnews.com/feed/",                                  topic: "Biotech & life sciences"},
+  { id: "nature-biotech",  url: "https://www.nature.com/nbt.rss",                                  topic: "Biotech & life sciences"},
+  // Data science & ML
+  { id: "towards-ds",      url: "https://towardsdatascience.com/feed",                             topic: "Data science & ML"      },
+  { id: "ars-technica",    url: "https://feeds.arstechnica.com/arstechnica/technology-lab",        topic: "Developer & open source"},
+  // Product & strategy
+  { id: "lennys",          url: "https://www.lennysnewsletter.com/feed",                           topic: "Product & strategy"     },
+  // Developer & open source
+  { id: "hacker-news-ai",  url: "https://hnrss.org/newest?q=AI+LLM&count=20",                     topic: "Developer & open source"},
 ];
 
 interface Article {
@@ -175,7 +183,23 @@ async function loadArticles(): Promise<Article[]> {
     }),
   );
 
-  const flat = results.flat().filter((a) => a.link && a.title);
+  // ── AI relevance gate ────────────────────────────────────────────────────────
+  // Distill is an AI news product. Drop any article that doesn't mention AI at
+  // all — this prevents biotech/industry feeds from leaking non-AI stories.
+  const AI_GATE_TERMS = [
+    "ai", "artificial intelligence", "machine learning", "llm", "large language model",
+    "gpt", "claude", "gemini", "chatgpt", "copilot", "midjourney", "dall-e", "sora",
+    "neural", "deep learning", "generative", "foundation model", "language model",
+    "openai", "anthropic", "google deepmind", "mistral", "llama", "hugging face",
+    "automation", "algorithm", "robot", "computer vision", "natural language",
+  ];
+
+  function isAIRelevant(article: { title: string; summary: string }): boolean {
+    const corpus = `${article.title} ${article.summary}`.toLowerCase();
+    return AI_GATE_TERMS.some((term) => corpus.includes(term));
+  }
+
+  const flat = results.flat().filter((a) => a.link && a.title && isAIRelevant(a));
   flat.sort((a, b) => {
     if (a.published && b.published)
       return new Date(b.published).getTime() - new Date(a.published).getTime();
@@ -191,22 +215,33 @@ export async function GET(req: Request) {
   unstable_noStore();
 
   const { searchParams } = new URL(req.url);
-  const role     = searchParams.get("role")    || "";
-  const industry = searchParams.get("industry")|| "";
-  const comfort  = (searchParams.get("comfort") || "beginner") as AIComfortLevel;
-  const goal     = searchParams.get("goal")    || "stay-informed";
-  const aiTools  = (searchParams.get("aiTools") || "").split(",").filter(Boolean);
+  const role            = searchParams.get("role")     || "";
+  const industry        = searchParams.get("industry") || "";
+  const depth           = (searchParams.get("depth") || "practical") as DepthPreference;
+  const goals           = (searchParams.get("goals") || "stay-informed").split(",").filter(Boolean) as Goal[];
+  const seniority       = (searchParams.get("seniority") || "mid") as SeniorityLevel;
+  const negativeSignals = (searchParams.get("negativeSignals") || "").split(",").filter(Boolean);
+  const aiTools         = (searchParams.get("aiTools") || "").split(",").filter(Boolean);
+
+  // Map depth → legacy comfort for buildComfortSummary
+  const depthToComfort: Record<DepthPreference, AIComfortLevel> = {
+    strategic: "skeptic",
+    practical: "beginner",
+    technical: "active",
+    research:  "power",
+  };
+  const comfort = depthToComfort[depth] ?? "beginner";
 
   const articles = await loadArticles();
 
   const ranked = recommend(
-    { role, industry, comfort, goal: goal as Goal, aiTools },
+    { role, industry, depth, goals, seniority, negativeSignals, aiTools },
     articles,
     8,
   );
 
   const { texts: whyItMatters, source: whySource } = await buildWhyItMattersBatch(
-    { role, industry, comfort, goal },
+    { role, industry, comfort, goal: goals[0] ?? "stay-informed" },
     ranked.map((a) => ({ title: a.title, summary: a.summary })),
   );
 
@@ -225,7 +260,7 @@ export async function GET(req: Request) {
   return NextResponse.json(
     {
       items,
-      _debug: { role, industry, comfort, goal, aiTools, whySource, ts: Date.now() },
+      _debug: { role, industry, depth, goals, seniority, negativeSignals, aiTools, whySource, ts: Date.now() },
     },
     { headers: NO_CACHE_HEADERS },
   );

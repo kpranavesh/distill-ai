@@ -1,25 +1,29 @@
-export type ComfortLevel = "skeptic" | "beginner" | "active" | "power";
+export type DepthPreference = "practical" | "strategic" | "technical" | "research";
+
+export type SeniorityLevel = "new" | "mid" | "senior" | "executive";
 
 export type Goal =
   | "stay-informed"
   | "find-tools"
   | "strategic-decisions"
   | "build"
-  | "curiosity";
+  | "understand";
 
 export interface UserProfile {
-  role: string;       // e.g. "Engineering / Technical"
-  industry: string;   // e.g. "Financial Services"
-  comfort: ComfortLevel;
-  goal: Goal;
-  aiTools: string[];  // e.g. ["ChatGPT", "Cursor"]
+  role: string;           // e.g. "engineering"
+  industry: string;       // e.g. "healthcare"
+  depth: DepthPreference; // how deep they want content
+  goals: Goal[];          // what they're here for
+  seniority: SeniorityLevel; // experience level in their field
+  negativeSignals: string[]; // what they don't want to see
+  aiTools: string[];      // tools they already use (dedup)
 }
 
 export interface Article {
   id: string;
   title: string;
   topic: string;      // RSS feed topic label
-  source: string;     // "openai" | "anthropic" | "google-ai" etc.
+  source: string;     // "openai" | "techcrunch" etc.
   summary: string;
   published: string | null;
   link: string;

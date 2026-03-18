@@ -9,6 +9,29 @@ import {
   INDUSTRY_KEYWORDS,
 } from "./keywords";
 
+// Keywords that indicate introductory / beginner-level content
+const INTRO_KEYWORDS = [
+  "how to", "getting started", "introduction", "beginners guide", "beginner's guide",
+  "what is", "tutorial", "learn", "first time", "try", "explainer", "basics", "101",
+  "for beginners", "primer", "overview", "simple guide",
+];
+
+// Keywords that indicate advanced / senior-level content
+const ADVANCED_KEYWORDS = [
+  "deep dive", "advanced", "under the hood", "architecture", "internals",
+  "paper", "research", "benchmark", "ablation", "technical report", "arxiv",
+  "fine-tun", "training run", "infrastructure", "at scale", "production",
+];
+
+// Negative signal keyword map — what each chip filters out
+const NEGATIVE_SIGNAL_KEYWORDS: Record<string, string[]> = {
+  "Too technical":           TECHNICAL_KEYWORDS,
+  "Too basic / beginner":    INTRO_KEYWORDS,
+  "AI hype & fluff":         ["revolutionary", "game-changer", "unprecedented", "groundbreaking", "disrupts everything", "changes everything", "world-changing"],
+  "Vendor announcements":    ["now available", "launches", "unveiled", "released today", "introducing", "announcing", "new feature", "available today"],
+  "Research papers":         ["arxiv", "paper", "preprint", "study", "ablation", "benchmark results", "eval", "technical report"],
+};
+
 function contains(text: string, terms: string[]): boolean {
   const lower = text.toLowerCase();
   return terms.some((t) => lower.includes(t));
@@ -32,61 +55,106 @@ export function scoreArticle(
   factors.push({ factor: "base", points: 20 });
 
   // ── Goal signals ────────────────────────────────────────────────────────────
-  switch (profile.goal) {
-    case "find-tools": {
-      const hits = countMatches(corpus, TOOL_LAUNCH_KEYWORDS);
-      if (hits > 0) factors.push({ factor: "goal:find-tools — tool launch keywords", points: Math.min(hits * 8, 24) });
-      break;
+  // Each selected goal is scored independently — if a user cares about tools
+  // AND strategy, both keyword groups contribute. Final clamp to 100 prevents runaway.
+  for (const goal of profile.goals) {
+    switch (goal) {
+      case "find-tools": {
+        const hits = countMatches(corpus, TOOL_LAUNCH_KEYWORDS);
+        if (hits > 0) factors.push({ factor: "goal:find-tools — tool launch keywords", points: Math.min(hits * 8, 24) });
+        break;
+      }
+      case "strategic-decisions": {
+        const hits = countMatches(corpus, STRATEGIC_KEYWORDS);
+        if (hits > 0) factors.push({ factor: "goal:strategic-decisions — strategic keywords", points: Math.min(hits * 8, 24) });
+        break;
+      }
+      case "build": {
+        const hits = countMatches(corpus, BUILD_KEYWORDS);
+        if (hits > 0) factors.push({ factor: "goal:build — developer keywords", points: Math.min(hits * 8, 24) });
+        break;
+      }
     }
-    case "strategic-decisions": {
-      const hits = countMatches(corpus, STRATEGIC_KEYWORDS);
-      if (hits > 0) factors.push({ factor: "goal:strategic-decisions — strategic keywords", points: Math.min(hits * 8, 24) });
-      break;
+  }
+  // stay-informed / understand: flat news signal, applied once regardless of how many are selected
+  if (profile.goals.some((g) => g === "stay-informed" || g === "understand")) {
+    if (contains(corpus, ["announced", "launches", "released", "unveiled"])) {
+      factors.push({ factor: "goal:stay-informed — news signal", points: 8 });
     }
-    case "build": {
-      const hits = countMatches(corpus, BUILD_KEYWORDS);
-      if (hits > 0) factors.push({ factor: "goal:build — developer keywords", points: Math.min(hits * 8, 24) });
+  }
+
+  // ── Depth signals ────────────────────────────────────────────────────────────
+  // depth = how technical/deep the user wants content to be
+  const isTechnical = contains(corpus, TECHNICAL_KEYWORDS);
+
+  switch (profile.depth) {
+    case "strategic":
+      // Strategic readers want business impact — penalise pure technical content
+      if (contains(corpus, STRATEGIC_KEYWORDS)) {
+        factors.push({ factor: "depth:strategic — business/impact match", points: 12 });
+      }
+      if (isTechnical && !contains(corpus, STRATEGIC_KEYWORDS)) {
+        factors.push({ factor: "depth:strategic — pure technical penalty", points: -15 });
+      }
       break;
-    }
-    case "stay-informed":
-    case "curiosity":
-    default:
-      // Balanced — no strong skew, slight boost for anything high-impact
-      if (contains(corpus, ["announced", "launches", "released", "unveiled"])) {
-        factors.push({ factor: "goal:stay-informed — news signal", points: 8 });
+    case "practical":
+      // Practical readers want tools and use-cases, not theory
+      if (contains(corpus, TOOL_LAUNCH_KEYWORDS)) {
+        factors.push({ factor: "depth:practical — tool/use-case match", points: 10 });
+      }
+      if (isTechnical) {
+        factors.push({ factor: "depth:practical — technical penalty", points: -8 });
+      }
+      break;
+    case "technical":
+      // Technical readers welcome technical content, especially comparisons
+      if (isTechnical) {
+        factors.push({ factor: "depth:technical — technical content match", points: 12 });
+      }
+      if (contains(corpus, ["vs ", "versus", "compared to", "better than", "alternative"])) {
+        factors.push({ factor: "depth:technical — comparison content", points: 8 });
+      }
+      break;
+    case "research":
+      // Research readers want papers, benchmarks, deep technical content
+      if (isTechnical) {
+        factors.push({ factor: "depth:research — technical depth match", points: 15 });
+      }
+      if (contains(corpus, ADVANCED_KEYWORDS)) {
+        factors.push({ factor: "depth:research — advanced content match", points: 10 });
       }
       break;
   }
 
-  // ── Comfort signals ─────────────────────────────────────────────────────────
-  const isTechnical = contains(corpus, TECHNICAL_KEYWORDS);
+  // ── Seniority signals ────────────────────────────────────────────────────────
+  // Seniority modifies what depth of content within a topic is appropriate
+  const isIntro = contains(corpus, INTRO_KEYWORDS);
+  const isAdvanced = contains(corpus, ADVANCED_KEYWORDS);
 
-  switch (profile.comfort) {
-    case "skeptic":
-      // Skeptics want business impact, not technical depth
+  switch (profile.seniority) {
+    case "new":
+      // New to field: boost intro content, no penalty for advanced (they might aspire)
+      if (isIntro) factors.push({ factor: "seniority:new — intro content match", points: 8 });
+      break;
+    case "mid":
+      // Mid-level: slight boost for practical how-tos, neutral otherwise
+      if (!isIntro && !isAdvanced) {
+        factors.push({ factor: "seniority:mid — applied content match", points: 4 });
+      }
+      break;
+    case "senior":
+      // Senior: penalise intro/basics, boost advanced
+      if (isIntro) factors.push({ factor: "seniority:senior — intro content penalty", points: -12 });
+      if (isAdvanced) factors.push({ factor: "seniority:senior — advanced content match", points: 10 });
+      break;
+    case "executive":
+      // Executive: penalise both extremes, boost strategic/business-outcome content
+      if (isIntro) factors.push({ factor: "seniority:executive — intro penalty", points: -8 });
+      if (isAdvanced && !contains(corpus, STRATEGIC_KEYWORDS)) {
+        factors.push({ factor: "seniority:executive — deep technical penalty", points: -10 });
+      }
       if (contains(corpus, STRATEGIC_KEYWORDS)) {
-        factors.push({ factor: "comfort:skeptic — business impact match", points: 12 });
-      }
-      if (isTechnical) {
-        factors.push({ factor: "comfort:skeptic — technical penalty", points: -15 });
-      }
-      break;
-    case "beginner":
-      // Light preference for accessible, non-technical content
-      if (isTechnical) {
-        factors.push({ factor: "comfort:beginner — technical penalty", points: -8 });
-      }
-      break;
-    case "active":
-      // Neutral on technical; boosts comparison/vs content
-      if (contains(corpus, ["vs ", "versus", "compared to", "better than", "alternative"])) {
-        factors.push({ factor: "comfort:active — comparison content", points: 10 });
-      }
-      break;
-    case "power":
-      // Power users want technical depth
-      if (isTechnical) {
-        factors.push({ factor: "comfort:power — technical depth match", points: 15 });
+        factors.push({ factor: "seniority:executive — strategic content match", points: 10 });
       }
       break;
   }
@@ -176,6 +244,15 @@ export function scoreArticle(
   // Technology / Software gets a small blanket boost — AI news is always on-topic
   if (profile.industry === "Technology / Software") {
     factors.push({ factor: "industry:tech — always relevant", points: 6 });
+  }
+
+  // ── Negative signals ─────────────────────────────────────────────────────────
+  // Hard penalise articles matching what the user said they don't want
+  for (const signal of (profile.negativeSignals ?? [])) {
+    const terms = NEGATIVE_SIGNAL_KEYWORDS[signal];
+    if (terms && contains(corpus, terms)) {
+      factors.push({ factor: `negativeSignal:${signal}`, points: -20 });
+    }
   }
 
   // ── AI Tools dedup ──────────────────────────────────────────────────────────

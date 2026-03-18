@@ -1,4 +1,4 @@
-// Quick smoke test — run with: npx ts-node test.ts
+// Quick smoke test — run with: npx tsx recommender/test.ts
 import { recommend, explain } from "./index";
 import type { UserProfile, Article } from "./types";
 
@@ -9,7 +9,7 @@ const ARTICLES: Article[] = [
     topic: "Models & assistants",
     source: "openai",
     summary: "OpenAI today released the GPT-5 API for developers, featuring 128k context, function calling improvements, and lower inference latency. Available in the OpenAI SDK today.",
-    published: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(), // yesterday
+    published: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
     link: "https://openai.com/blog/gpt-5-api",
   },
   {
@@ -59,16 +59,18 @@ const ARTICLES: Article[] = [
   },
 ];
 
-// ── Test 1: Finance Executive, strategic-decisions goal ──────────────────────
+// ── Test 1: Finance Executive, strategic + executive ──────────────────────────
 const financeExec: UserProfile = {
-  role: "Executive / C-Suite",
-  industry: "Financial Services",
-  comfort: "skeptic",
-  goal: "strategic-decisions",
+  role: "executive",
+  industry: "financial-services",
+  depth: "strategic",
+  seniority: "executive",
+  goals: ["strategic-decisions"],
+  negativeSignals: ["Too technical"],
   aiTools: ["ChatGPT"],
 };
 
-console.log("\n=== Finance Executive (strategic-decisions, skeptic) ===");
+console.log("\n=== Finance Executive (strategic depth, executive seniority) ===");
 const execResults = recommend(financeExec, ARTICLES, 6);
 execResults.forEach((a, i) => {
   console.log(`${i + 1}. [${a.score}] ${a.title}`);
@@ -76,16 +78,18 @@ execResults.forEach((a, i) => {
 console.log("\nTop article explanation:");
 console.log(explain(financeExec, execResults[0]));
 
-// ── Test 2: Engineer, build goal, already uses ChatGPT ───────────────────────
+// ── Test 2: Senior Engineer, technical depth, build goal ──────────────────────
 const engineer: UserProfile = {
-  role: "Engineering / Technical",
-  industry: "Technology / Software",
-  comfort: "power",
-  goal: "build",
+  role: "engineering",
+  industry: "technology",
+  depth: "technical",
+  seniority: "senior",
+  goals: ["build"],
+  negativeSignals: ["Too basic / beginner"],
   aiTools: ["ChatGPT", "Cursor"],
 };
 
-console.log("\n=== Engineer (build, power user, uses ChatGPT+Cursor) ===");
+console.log("\n=== Senior Engineer (technical depth, build goal, uses ChatGPT+Cursor) ===");
 const engResults = recommend(engineer, ARTICLES, 6);
 engResults.forEach((a, i) => {
   console.log(`${i + 1}. [${a.score}] ${a.title}`);
@@ -94,16 +98,18 @@ console.log("\nNote: 'Getting started with ChatGPT' should be penalised:");
 const chatgptIntro = ARTICLES.find((a) => a.id === "3")!;
 console.log(explain(engineer, chatgptIntro));
 
-// ── Test 3: Marketing Growth, find-tools goal ────────────────────────────────
+// ── Test 3: New Marketer, practical depth, find-tools goal ────────────────────
 const marketer: UserProfile = {
-  role: "Marketing / Growth",
-  industry: "Media / Marketing / Creative",
-  comfort: "active",
-  goal: "find-tools",
+  role: "marketing",
+  industry: "media",
+  depth: "practical",
+  seniority: "new",
+  goals: ["find-tools"],
+  negativeSignals: [],
   aiTools: [],
 };
 
-console.log("\n=== Marketer (find-tools, active user, no tools yet) ===");
+console.log("\n=== New Marketer (practical depth, find-tools goal, no tools yet) ===");
 const mktResults = recommend(marketer, ARTICLES, 6);
 mktResults.forEach((a, i) => {
   console.log(`${i + 1}. [${a.score}] ${a.title}`);

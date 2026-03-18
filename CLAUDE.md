@@ -1,6 +1,20 @@
-# CLAUDE.md — Signal App (V2)
+# CLAUDE.md — Distill AI
 
 AI-powered news briefing app. Fetches RSS feeds, scores articles against user profile, returns personalised briefing with Claude-generated "why it matters" per article.
+
+---
+
+## Development workflow — ALWAYS follow this
+
+See full details: `docs/development-workflow.md`
+
+| Step | Command | Where |
+|------|---------|-------|
+| 1. Develop & test | `make local` | localhost:3000 |
+| 2. Preview on Vercel | `make dev` | unique preview URL |
+| 3. Ship to production | `git push origin main` | distill-ai.vercel.app (auto-deploy) |
+
+**Rules: Always run `make local` first — build must pass before testing. Never use `npx vercel --prod` manually — push to main so GitHub and prod stay in sync.**
 
 ---
 

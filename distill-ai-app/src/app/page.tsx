@@ -4,22 +4,26 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
-type AIComfortLevel = "skeptic" | "beginner" | "active" | "power";
+type DepthPreference = "practical" | "strategic" | "technical" | "research";
+
+type SeniorityLevel = "new" | "mid" | "senior" | "executive";
 
 type Goal =
   | "stay-informed"
   | "find-tools"
   | "strategic-decisions"
-  | "curiosity";
+  | "build"
+  | "understand";
 
 interface UserProfile {
   name: string;
   role: string;
   industry: string;
-  comfort: AIComfortLevel;
+  depth: DepthPreference;
   goals: Goal[];
+  seniority: SeniorityLevel;
+  negativeSignals: string[];
   aiTools: string[];
-  topicsMuted: string[];
   topicsBoosted: string[];
 }
 
@@ -107,46 +111,34 @@ function getIndustryLabel(value: string): string {
   return (INDUSTRY_OPTIONS.find((i) => i.value === value)?.label ?? value) || "—";
 }
 
-const AI_TOOLS = [
-  "ChatGPT",
-  "Claude",
-  "Gemini",
-  "Copilot",
-  "Cursor",
-  "Perplexity",
-  "Midjourney",
-  "None yet",
+const DEPTH_OPTIONS: { value: DepthPreference; label: string; subtitle: string }[] = [
+  { value: "practical",  label: "Practical",  subtitle: "Show me what I can use tomorrow" },
+  { value: "strategic",  label: "Strategic",  subtitle: "Business impact and where this is heading" },
+  { value: "technical",  label: "Technical",  subtitle: "I want to understand how it actually works" },
+  { value: "research",   label: "Research",   subtitle: "Give me the papers and benchmarks" },
 ];
 
-const COMFORT_LEVELS: { value: AIComfortLevel; label: string; subtitle: string }[] =
-  [
-    {
-      value: "skeptic",
-      label: "Skeptic",
-      subtitle: "Not sure AI is for me yet",
-    },
-    {
-      value: "beginner",
-      label: "Curious beginner",
-      subtitle: "Just getting started, want plain English",
-    },
-    {
-      value: "active",
-      label: "Active user",
-      subtitle: "Use AI weekly and want deeper context",
-    },
-    {
-      value: "power",
-      label: "Power user",
-      subtitle: "Comfortable with AI, care about edge cases",
-    },
-  ];
+const SENIORITY_OPTIONS: { value: SeniorityLevel; label: string; subtitle: string }[] = [
+  { value: "new",       label: "Just getting started", subtitle: "New to my field (0–3 years)" },
+  { value: "mid",       label: "Mid-level",            subtitle: "Finding my footing (3–8 years)" },
+  { value: "senior",    label: "Senior",               subtitle: "Deep expertise (8+ years)" },
+  { value: "executive", label: "Executive / Leader",   subtitle: "Leading teams or organisations" },
+];
 
 const GOAL_OPTIONS: { value: Goal; label: string }[] = [
-  { value: "stay-informed", label: "Stay on top of AI without the noise" },
-  { value: "find-tools", label: "Find practical tools I can use" },
-  { value: "strategic-decisions", label: "Make smarter strategic decisions" },
-  { value: "curiosity", label: "Feed my general curiosity about AI" },
+  { value: "stay-informed",      label: "Stay ahead of what's happening" },
+  { value: "find-tools",         label: "Find tools for my workflow" },
+  { value: "strategic-decisions",label: "Make smarter business decisions" },
+  { value: "build",              label: "Build products with AI" },
+  { value: "understand",         label: "Understand what AI actually is" },
+];
+
+const NEGATIVE_SIGNAL_OPTIONS = [
+  "Too technical",
+  "Too basic / beginner",
+  "AI hype & fluff",
+  "Vendor announcements",
+  "Research papers",
 ];
 
 const STATIC_BRIEFING_EXAMPLES: BriefingItem[] = [
@@ -367,7 +359,7 @@ function generateDistillReply(
     );
   }
 
-  if (userText.toLowerCase().includes("explain") && profile?.comfort === "beginner") {
+  if (userText.toLowerCase().includes("explain") && profile?.depth === "practical") {
     return (
       "Let’s keep it simple: think of AI as a very fast, very eager assistant. It’s great at first drafts and ideas, but you stay in charge of the final decision."
     );
@@ -455,10 +447,11 @@ export default function Home() {
     name: "",
     role: "",
     industry: "",
-    comfort: "beginner",
+    depth: "practical",
     goals: ["stay-informed"],
+    seniority: "mid",
+    negativeSignals: [],
     aiTools: [],
-    topicsMuted: [],
     topicsBoosted: [],
   });
 
@@ -480,14 +473,12 @@ export default function Home() {
   const [briefingItems, setBriefingItems] = useState<BriefingItem[]>([]);
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [briefingError, setBriefingError] = useState<string | null>(null);
-  const [audioOverviewPlaying, setAudioOverviewPlaying] = useState(false);
-  const [audioOverviewLoading, setAudioOverviewLoading] = useState(false);
-  const audioOverviewRef = useRef<HTMLAudioElement | null>(null);
-  const audioOverviewUrlRef = useRef<string | null>(null);
-  const audioChunksRef = useRef<string[]>([]);
-  const audioChunkIndexRef = useRef(0);
-  const nextStreamUrlRef = useRef<string | null>(null);
-  const audioOverviewBrowserFallbackRef = useRef(false);
+  const [podcastLoading, setPodcastLoading] = useState(false);
+  const [podcastPlaying, setPodcastPlaying] = useState(false);
+  const [podcastReady, setPodcastReady] = useState(false);
+  const [podcastError, setPodcastError] = useState<string | null>(null);
+  const podcastAudioRef = useRef<HTMLAudioElement | null>(null);
+  const podcastUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -502,10 +493,11 @@ export default function Home() {
             name: data.name ?? "",
             role: data.role ?? "",
             industry: data.industry ?? "",
-            comfort: data.comfort ?? "beginner",
+            depth: data.depth ?? "practical",
             goals: Array.isArray(data.goals) ? data.goals : ["stay-informed"],
+            seniority: data.seniority ?? "mid",
+            negativeSignals: Array.isArray(data.negativeSignals) ? data.negativeSignals : [],
             aiTools: Array.isArray(data.aiTools) ? data.aiTools : [],
-            topicsMuted: Array.isArray(data.topicsMuted) ? data.topicsMuted : [],
             topicsBoosted: Array.isArray(data.topicsBoosted) ? data.topicsBoosted : [],
           });
         }
@@ -528,8 +520,10 @@ export default function Home() {
         const params = new URLSearchParams({
           role: profile?.role ?? "",
           industry: profile?.industry ?? "",
-          comfort: profile?.comfort ?? "beginner",
-          goal: profile?.goals[0] ?? "stay-informed",
+          depth: profile?.depth ?? "practical",
+          goals: (profile?.goals ?? ["stay-informed"]).join(","),
+          seniority: profile?.seniority ?? "mid",
+          negativeSignals: (profile?.negativeSignals ?? []).join(","),
           aiTools: (profile?.aiTools ?? []).join(","),
           _t: Date.now().toString(),
         }).toString();
@@ -575,90 +569,17 @@ export default function Home() {
 
   useEffect(() => {
     return () => {
-      if (audioOverviewUrlRef.current) {
-        URL.revokeObjectURL(audioOverviewUrlRef.current);
-        audioOverviewUrlRef.current = null;
-      }
-      if (nextStreamUrlRef.current) {
-        URL.revokeObjectURL(nextStreamUrlRef.current);
-        nextStreamUrlRef.current = null;
+      if (podcastUrlRef.current) {
+        URL.revokeObjectURL(podcastUrlRef.current);
+        podcastUrlRef.current = null;
       }
     };
   }, []);
 
-  const playNextAudioChunk = useRef<() => void>(() => {});
-  playNextAudioChunk.current = () => {
-    const chunks = audioChunksRef.current;
-    const idx = audioChunkIndexRef.current;
-    const el = audioOverviewRef.current;
-
-    function setNextChunkUrl(url: string) {
-      if (audioOverviewUrlRef.current) URL.revokeObjectURL(audioOverviewUrlRef.current);
-      audioOverviewUrlRef.current = url;
-      audioChunkIndexRef.current = idx + 1;
-      if (el) {
-        el.src = url;
-        el.play();
-      }
-    }
-
-    function preFetchChunk(chunkIndex: number) {
-      if (chunkIndex >= chunks.length) return;
-      fetch("/api/audio", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: chunks[chunkIndex] }),
-        cache: "no-store",
-      })
-        .then((r) => {
-          if (!r.ok || !(r.headers.get("content-type") ?? "").includes("audio/")) throw new Error("Not audio");
-          return r.arrayBuffer();
-        })
-        .then((buf) => {
-          nextStreamUrlRef.current = URL.createObjectURL(new Blob([buf], { type: "audio/mpeg" }));
-        })
-        .catch(() => { nextStreamUrlRef.current = null; });
-    }
-
-    if (nextStreamUrlRef.current) {
-      const url = nextStreamUrlRef.current;
-      nextStreamUrlRef.current = null;
-      setNextChunkUrl(url);
-      preFetchChunk(audioChunkIndexRef.current + 1);
-    } else if (idx + 1 < chunks.length) {
-      audioChunkIndexRef.current = idx + 1;
-      const nextChunk = chunks[audioChunkIndexRef.current];
-      fetch("/api/audio", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: nextChunk }),
-        cache: "no-store",
-      })
-        .then((r) => {
-          if (!r.ok || !(r.headers.get("content-type") ?? "").includes("audio/")) throw new Error("Not audio");
-          return r.arrayBuffer();
-        })
-        .then((buf) => {
-          const url = URL.createObjectURL(new Blob([buf], { type: "audio/mpeg" }));
-          setNextChunkUrl(url);
-          preFetchChunk(audioChunkIndexRef.current + 1);
-        })
-        .catch(() => setAudioOverviewPlaying(false));
-    } else {
-      setAudioOverviewPlaying(false);
-      if (audioOverviewUrlRef.current) URL.revokeObjectURL(audioOverviewUrlRef.current);
-      audioOverviewUrlRef.current = null;
-      if (el) el.src = "";
-      audioChunksRef.current = [];
-      audioChunkIndexRef.current = 0;
-      nextStreamUrlRef.current = null;
-    }
-  };
-
   const personalisedBriefing = useMemo(() => {
     if (!profile) return [] as BriefingItem[];
     return briefingItems.filter((item) => {
-      const muted = profile.topicsMuted.includes(item.topic);
+      const muted = profile.negativeSignals.some((s) => item.topic.toLowerCase().includes(s.toLowerCase()));
       return !muted;
     });
   }, [briefingItems, profile]);
@@ -725,6 +646,82 @@ export default function Home() {
     setShowQuizResults(true);
   };
 
+  const handleStartPodcast = async () => {
+    if (!profile || personalisedBriefing.length === 0) return;
+    setPodcastError(null);
+    setPodcastLoading(true);
+    try {
+      const items = personalisedBriefing.slice(0, 8).map((item) => ({
+        title: item.title,
+        topic: item.topic,
+        comfortSummary: item.comfortSummary,
+        whyItMatters: item.whyItMatters,
+        relevanceScore: item.relevanceScore,
+      }));
+      const res = await fetch("/api/podcast", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          items,
+          profile: {
+            role: profile.role,
+            industry: profile.industry,
+            seniority: profile.seniority,
+            depth: profile.depth,
+            goals: profile.goals,
+          },
+        }),
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error ?? `Podcast failed: ${res.status}`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      if (podcastUrlRef.current) URL.revokeObjectURL(podcastUrlRef.current);
+      podcastUrlRef.current = url;
+      const el = podcastAudioRef.current;
+      if (el) {
+        el.src = url;
+        setPodcastReady(true);
+        await el.play();
+      }
+    } catch (e) {
+      setPodcastError(e instanceof Error ? e.message : "Could not generate podcast.");
+    } finally {
+      setPodcastLoading(false);
+    }
+  };
+
+  /** Update topic preference from "This was useful" (boost) or "Not relevant" (mute), then persist. */
+  const handleTopicFeedback = async (topic: string, type: "muted" | "boosted") => {
+    if (!profile || !topic.trim()) return;
+    const next = type === "muted"
+      ? {
+          ...profile,
+          negativeSignals: [...new Set([...profile.negativeSignals, topic])],
+          topicsBoosted: profile.topicsBoosted.filter((t) => t !== topic),
+        }
+      : {
+          ...profile,
+          topicsBoosted: [...new Set([...profile.topicsBoosted, topic])],
+          negativeSignals: profile.negativeSignals.filter((t) => t !== topic),
+        };
+    setProfile(next);
+    try {
+      await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(next),
+        cache: "no-store",
+      });
+    } catch {
+      // Revert on failure
+      setProfile(profile);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-950 via-slate-950 to-slate-900 text-slate-50">
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 pb-16 pt-10 sm:px-6 lg:px-8 lg:pt-12">
@@ -754,8 +751,7 @@ export default function Home() {
                 </div>
                 <div className="text-slate-400">
                   {getRoleLabel(profile.role) || "Role not set"} ·{" "}
-                  {COMFORT_LEVELS.find((c) => c.value === profile.comfort)?.label ??
-                    "Beginner"}
+                  {DEPTH_OPTIONS.find((d) => d.value === profile.depth)?.label ?? "Practical"}
                 </div>
               </div>
             </div>
@@ -863,31 +859,29 @@ export default function Home() {
                 <div className="space-y-6">
                   <div>
                     <label className="text-sm font-medium text-slate-200">
-                      How comfortable are you with AI today?
+                      How deep do you want to go?
                     </label>
+                    <p className="mt-0.5 text-sm text-slate-400">
+                      We'll match article complexity to your preference.
+                    </p>
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      {COMFORT_LEVELS.map((level) => {
-                        const active = draftProfile.comfort === level.value;
+                      {DEPTH_OPTIONS.map((opt) => {
+                        const active = draftProfile.depth === opt.value;
                         return (
                           <button
-                            key={level.value}
+                            key={opt.value}
                             type="button"
                             onClick={() =>
-                              setDraftProfile((p) => ({
-                                ...p,
-                                comfort: level.value,
-                              }))
+                              setDraftProfile((p) => ({ ...p, depth: opt.value }))
                             }
-                            className={`flex flex-col items-start rounded-2xl border px-3 py-3 text-left text-sm sm:text-sm ${
+                            className={`flex flex-col items-start rounded-2xl border px-3 py-3 text-left text-sm ${
                               active
                                 ? "border-emerald-400 bg-emerald-500/10 text-emerald-100"
                                 : "border-slate-700/80 bg-slate-900/60 text-slate-100 hover:border-slate-500"
                             }`}
                           >
-                            <span className="font-medium">{level.label}</span>
-                            <span className="mt-1 text-sm text-slate-300 sm:text-sm">
-                              {level.subtitle}
-                            </span>
+                            <span className="font-medium">{opt.label}</span>
+                            <span className="mt-1 text-sm text-slate-300">{opt.subtitle}</span>
                           </button>
                         );
                       })}
@@ -895,24 +889,19 @@ export default function Home() {
                   </div>
                   <div>
                     <label className="text-sm font-medium text-slate-200">
-                      Why are you here?
+                      What&apos;s your main reason for being here?
                     </label>
                     <div className="mt-3 grid gap-2 sm:grid-cols-2">
                       {GOAL_OPTIONS.map((goal) => {
-                        const active = draftProfile.goals.includes(goal.value);
+                        const active = draftProfile.goals[0] === goal.value;
                         return (
                           <button
                             key={goal.value}
                             type="button"
                             onClick={() =>
-                              setDraftProfile((p) => ({
-                                ...p,
-                                goals: active
-                                  ? p.goals.filter((g) => g !== goal.value)
-                                  : [...p.goals, goal.value],
-                              }))
+                              setDraftProfile((p) => ({ ...p, goals: [goal.value] }))
                             }
-                            className={`rounded-2xl border px-3 py-2 text-left text-sm sm:text-sm ${
+                            className={`rounded-2xl border px-3 py-2 text-left text-sm ${
                               active
                                 ? "border-emerald-400 bg-emerald-500/10 text-emerald-100"
                                 : "border-slate-700/80 bg-slate-900/60 text-slate-100 hover:border-slate-500"
@@ -931,33 +920,63 @@ export default function Home() {
                 <div className="space-y-6">
                   <div>
                     <label className="text-sm font-medium text-slate-200">
-                      Which AI tools do you already use?
+                      How long have you been in your field?
                     </label>
-                    <p className="mt-1 text-sm text-slate-400">
-                      Select all that apply — Distill won&apos;t waste your time with &quot;have you tried X?&quot; if you already use it.
+                    <p className="mt-0.5 text-sm text-slate-400">
+                      We&apos;ll calibrate article depth to match your experience level.
                     </p>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {AI_TOOLS.map((tool) => {
-                        const selected = draftProfile.aiTools.includes(tool);
+                    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                      {SENIORITY_OPTIONS.map((opt) => {
+                        const active = draftProfile.seniority === opt.value;
                         return (
                           <button
-                            key={tool}
+                            key={opt.value}
                             type="button"
                             onClick={() =>
-                              setDraftProfile((p) => ({
-                                ...p,
-                                aiTools: selected
-                                  ? p.aiTools.filter((t) => t !== tool)
-                                  : [...p.aiTools, tool],
-                              }))
+                              setDraftProfile((p) => ({ ...p, seniority: opt.value }))
                             }
-                            className={`rounded-full border px-3 py-1.5 text-sm ${
-                              selected
+                            className={`flex flex-col items-start rounded-2xl border px-3 py-3 text-left text-sm ${
+                              active
                                 ? "border-emerald-400 bg-emerald-500/10 text-emerald-100"
                                 : "border-slate-700/80 bg-slate-900/60 text-slate-100 hover:border-slate-500"
                             }`}
                           >
-                            {tool}
+                            <span className="font-medium">{opt.label}</span>
+                            <span className="mt-1 text-sm text-slate-300">{opt.subtitle}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-slate-200">
+                      What do you want less of? <span className="font-normal text-slate-400">(optional)</span>
+                    </label>
+                    <p className="mt-0.5 text-sm text-slate-400">
+                      Tap anything you don&apos;t want filling your briefing.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {NEGATIVE_SIGNAL_OPTIONS.map((signal) => {
+                        const selected = draftProfile.negativeSignals.includes(signal);
+                        return (
+                          <button
+                            key={signal}
+                            type="button"
+                            onClick={() =>
+                              setDraftProfile((p) => ({
+                                ...p,
+                                negativeSignals: selected
+                                  ? p.negativeSignals.filter((s) => s !== signal)
+                                  : [...p.negativeSignals, signal],
+                              }))
+                            }
+                            className={`rounded-full border px-3 py-1.5 text-sm ${
+                              selected
+                                ? "border-rose-400 bg-rose-500/10 text-rose-200"
+                                : "border-slate-700/80 bg-slate-900/60 text-slate-100 hover:border-slate-500"
+                            }`}
+                          >
+                            {selected ? `— ${signal}` : signal}
                           </button>
                         );
                       })}
@@ -1064,133 +1083,57 @@ export default function Home() {
               <section className="grid flex-1 gap-6 md:grid-cols-[minmax(0,1.3fr),minmax(0,1fr)]">
                 <div className="md:col-span-2 flex flex-col gap-3 rounded-3xl bg-slate-900/80 p-4 ring-1 ring-slate-700/80 sm:flex-row sm:items-center sm:justify-between sm:p-5">
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-50">🎧 Listen to your briefing</h3>
+                    <h3 className="text-sm font-semibold text-slate-50">🎙️ Listen to your briefing</h3>
                     <p className="mt-1 text-sm text-slate-300">
-                      Rather read it than scroll through it? Hit play and we&apos;ll walk you through
-                      today&apos;s updates with a natural-sounding voice. Play or pause anytime.
+                      Two hosts, natural banter — Alex and Jordan walk through today&apos;s updates in a short, conversational episode. ~5 min.
                     </p>
                   </div>
                   <audio
-                    ref={audioOverviewRef}
-                    onPlay={() => setAudioOverviewPlaying(true)}
-                    onPause={() => setAudioOverviewPlaying(false)}
-                    onEnded={() => playNextAudioChunk.current()}
+                    ref={podcastAudioRef}
+                    onPlay={() => setPodcastPlaying(true)}
+                    onPause={() => setPodcastPlaying(false)}
+                    onEnded={() => setPodcastPlaying(false)}
                   />
-                  <button
-                    type="button"
-                    disabled={audioOverviewLoading}
-                    onClick={async () => {
-                      if (audioOverviewLoading) return;
-                      const el = audioOverviewRef.current;
-                      if (audioOverviewPlaying) {
-                        if (audioOverviewBrowserFallbackRef.current) {
-                          if (typeof window !== "undefined" && window.speechSynthesis) {
-                            window.speechSynthesis.cancel();
-                          }
-                          setAudioOverviewPlaying(false);
-                          audioOverviewBrowserFallbackRef.current = false;
-                        } else if (el) {
-                          el.pause();
-                        }
-                        return;
-                      }
-                      const text =
-                        personalisedBriefing.length === 0
-                          ? "You do not have any briefing items yet."
-                          : personalisedBriefing
-                              .map(
-                                (item, index) =>
-                                  `Update ${index + 1}. ${item.title}. ${
-                                    item.comfortSummary
-                                  } Why this matters: ${item.whyItMatters}.`,
-                              )
-                              .join(
-                                " Next, here is another update that matters to you. ",
-                              );
-                      if (el?.src) {
-                        el.play();
-                        return;
-                      }
-                      const chunks = chunkTextForAudio(text);
-                      if (chunks.length === 0) return;
-                      audioChunksRef.current = chunks;
-                      audioChunkIndexRef.current = 0;
-                      nextStreamUrlRef.current = null;
-                      setAudioOverviewLoading(true);
-                      try {
-                        const res = await fetch("/api/audio", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ text: chunks[0] }),
-                          cache: "no-store",
-                        });
-                        const contentType = res.headers.get("content-type") ?? "";
-                        if (!res.ok) {
-                          const err = await res.json().catch(() => ({}));
-                          throw new Error(err?.error || `Audio failed: ${res.status}`);
-                        }
-                        if (!contentType.includes("audio/")) {
-                          throw new Error("Server did not return audio. Try again.");
-                        }
-                        const buf = await res.arrayBuffer();
-                        const mime = contentType.includes("audio/") ? contentType.split(";")[0].trim() : "audio/mpeg";
-                        const url = URL.createObjectURL(new Blob([buf], { type: mime }));
-                        if (audioOverviewUrlRef.current) URL.revokeObjectURL(audioOverviewUrlRef.current);
-                        audioOverviewUrlRef.current = url;
-                        const audioEl = audioOverviewRef.current;
-                        if (audioEl) {
-                          audioEl.src = url;
-                          audioEl.load();
-                          await audioEl.play();
-                        }
-                        if (chunks.length > 1) {
-                          fetch("/api/audio", {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ text: chunks[1] }),
-                            cache: "no-store",
-                          })
-                            .then((r) => {
-                              if (!r.ok || !(r.headers.get("content-type") ?? "").includes("audio/")) return;
-                              return r.arrayBuffer();
-                            })
-                            .then((buf2) => {
-                              if (buf2) nextStreamUrlRef.current = URL.createObjectURL(new Blob([buf2], { type: "audio/mpeg" }));
-                            });
-                        }
-                      } catch (e) {
-                        console.error(e);
-                        const errMsg = e instanceof Error ? e.message : "Could not load audio.";
-                        if (
-                          typeof window !== "undefined" &&
-                          typeof window.speechSynthesis !== "undefined"
-                        ) {
-                          window.speechSynthesis.cancel();
-                          const utterance = new SpeechSynthesisUtterance(text);
-                          utterance.rate = 1;
-                          utterance.onend = () => {
-                            setAudioOverviewPlaying(false);
-                            audioOverviewBrowserFallbackRef.current = false;
-                          };
-                          audioOverviewBrowserFallbackRef.current = true;
-                          setAudioOverviewPlaying(true);
-                          window.speechSynthesis.speak(utterance);
+                  <div className="flex flex-col items-end gap-1">
+                    <button
+                      type="button"
+                      disabled={podcastLoading || personalisedBriefing.length === 0}
+                      onClick={() => {
+                        if (podcastLoading) return;
+                        if (podcastPlaying) {
+                          podcastAudioRef.current?.pause();
                         } else {
-                          alert(errMsg);
+                          const el = podcastAudioRef.current;
+                          if (podcastReady && el?.src) {
+                            void el.play();
+                          } else {
+                            handleStartPodcast();
+                          }
                         }
-                        audioChunksRef.current = [];
-                      } finally {
-                        setAudioOverviewLoading(false);
-                      }
-                    }}
-                    className="shrink-0 inline-flex items-center gap-2 rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-slate-950 shadow-md shadow-emerald-500/40 hover:bg-emerald-400 disabled:opacity-60 disabled:pointer-events-none sm:text-sm"
-                  >
-                    {audioOverviewLoading
-                      ? "Generating…"
-                      : audioOverviewPlaying
-                        ? "⏸ Pause"
-                        : "▶ Play audio overview"}
-                  </button>
+                      }}
+                      className="shrink-0 inline-flex items-center gap-2 rounded-full bg-slate-700 px-5 py-2 text-sm font-semibold text-slate-100 shadow-md hover:bg-slate-600 disabled:opacity-60 disabled:pointer-events-none sm:text-sm"
+                    >
+                      {podcastLoading
+                        ? "Generating your podcast…"
+                        : podcastPlaying
+                          ? "⏸ Pause"
+                          : podcastReady
+                            ? "▶ Resume"
+                            : "▶ Play podcast"}
+                    </button>
+                    {podcastError && (
+                      <p className="text-xs text-amber-300">
+                        {podcastError}
+                        <button
+                          type="button"
+                          onClick={() => { setPodcastError(null); setPodcastReady(false); handleStartPodcast(); }}
+                          className="ml-1 underline"
+                        >
+                          Retry
+                        </button>
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="rounded-3xl bg-slate-900/80 p-5 ring-1 ring-slate-700/80 sm:p-6">
                   <div className="mb-4 flex items-center justify-between gap-3">
@@ -1282,12 +1225,14 @@ export default function Home() {
                           <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-400">
                             <button
                               type="button"
+                              onClick={() => handleTopicFeedback(item.topic, "boosted")}
                               className="rounded-full bg-slate-800 px-3 py-1 hover:bg-slate-700"
                             >
                               This was useful
                             </button>
                             <button
                               type="button"
+                              onClick={() => handleTopicFeedback(item.topic, "muted")}
                               className="rounded-full bg-slate-900 px-3 py-1 ring-1 ring-slate-700 hover:bg-slate-800"
                             >
                               Not relevant
@@ -1403,24 +1348,18 @@ export default function Home() {
                       </li>
                       <li>
                         <span className="mr-1 text-emerald-400">•</span>
-                        Comfort level:{" "}
-                        {
-                          COMFORT_LEVELS.find((c) => c.value === profile.comfort)
-                            ?.label
-                        }
+                        Depth:{" "}
+                        {DEPTH_OPTIONS.find((d) => d.value === profile.depth)?.label ?? profile.depth}
                       </li>
                       <li>
                         <span className="mr-1 text-emerald-400">•</span>
-                        Goals:{" "}
-                        {profile.goals.length
-                          ? profile.goals
-                              .map(
-                                (g) =>
-                                  GOAL_OPTIONS.find((o) => o.value === g)?.label ??
-                                  g,
-                              )
-                              .join(", ")
-                          : "not set"}
+                        Seniority:{" "}
+                        {SENIORITY_OPTIONS.find((s) => s.value === profile.seniority)?.label ?? profile.seniority}
+                      </li>
+                      <li>
+                        <span className="mr-1 text-emerald-400">•</span>
+                        Goal:{" "}
+                        {GOAL_OPTIONS.find((o) => o.value === profile.goals[0])?.label ?? profile.goals[0] ?? "not set"}
                       </li>
                     </ul>
                     <p className="mt-3 text-sm text-slate-400">

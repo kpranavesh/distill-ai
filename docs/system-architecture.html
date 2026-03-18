@@ -1,0 +1,1309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Distill AI — System Architecture</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #060810;
+  color: #e2e8f0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  min-height: 100vh;
+  padding: 48px 32px 100px;
+  line-height: 1.6;
+}
+
+/* ─── Typography ─────────────────────────────── */
+h1 {
+  text-align: center;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #f8fafc;
+  margin-bottom: 6px;
+}
+.subtitle {
+  text-align: center;
+  font-size: 12px;
+  color: #475569;
+  margin-bottom: 64px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.section-header {
+  max-width: 1100px;
+  margin: 0 auto 24px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.section-num {
+  font-size: 10px;
+  font-weight: 800;
+  color: #1e3a5f;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.section-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #64748b;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.section-rule {
+  flex: 1;
+  height: 1px;
+  background: #0f1929;
+}
+.section-gap { height: 72px; }
+
+/* ─── Narrative text ─────────────────────────── */
+.narrative {
+  max-width: 1100px;
+  margin: 0 auto 40px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.narrative.single {
+  grid-template-columns: 1fr;
+}
+.narrative.three {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.nar-block {
+  background: #0a0f1c;
+  border: 1px solid #111d30;
+  border-radius: 12px;
+  padding: 18px 20px;
+}
+.nar-block.accent {
+  background: #070d1a;
+  border-color: #1a3a5f;
+}
+.nar-eyebrow {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #334155;
+  margin-bottom: 6px;
+}
+.nar-heading {
+  font-size: 13px;
+  font-weight: 700;
+  color: #cbd5e1;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.nar-body {
+  font-size: 12px;
+  color: #475569;
+  line-height: 1.75;
+}
+.nar-body strong { color: #94a3b8; font-weight: 600; }
+.nar-body code {
+  font-family: monospace;
+  font-size: 10px;
+  color: #60a5fa;
+  background: #0a1628;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid #1e3a5f;
+}
+.nar-body em { color: #4ade80; font-style: normal; font-weight: 600; }
+.nar-body .warn { color: #fb923c; font-weight: 600; }
+
+/* ─── SYSTEM FLOWCHART ───────────────────────── */
+.flowchart {
+  max-width: 1100px;
+  margin: 0 auto 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Row: horizontal group of nodes + arrows */
+.fc-row {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  justify-content: center;
+}
+
+/* Vertical connector between rows */
+.fc-vconn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 0;
+}
+.fc-vline {
+  width: 2px;
+  height: 28px;
+  background: linear-gradient(to bottom, #1e293b, #0f1929);
+}
+.fc-vhead {
+  width: 0; height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 7px solid #1e293b;
+}
+.fc-vconn.right { align-items: flex-end; padding-right: 80px; }
+.fc-vconn.left  { align-items: flex-start; padding-left: 80px; }
+
+/* Horizontal connector */
+.fc-hconn {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.fc-hline {
+  height: 2px;
+  width: 32px;
+  background: linear-gradient(to right, #1e293b, #334155);
+}
+.fc-hhead {
+  width: 0; height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 7px solid #334155;
+  margin-top: -5px;
+  align-self: flex-end;
+}
+.fc-hconn-label {
+  font-size: 8px;
+  color: #1e3a5f;
+  text-align: center;
+  font-family: monospace;
+  margin-top: 3px;
+  white-space: nowrap;
+}
+
+/* Node types */
+.fc-node {
+  border-radius: 10px;
+  padding: 12px 16px;
+  min-width: 130px;
+  max-width: 180px;
+  flex-shrink: 0;
+}
+.fc-node.browser {
+  background: #0d1f35;
+  border: 1px solid #1e3a5f;
+}
+.fc-node.server {
+  background: #0d1f1a;
+  border: 1px solid #1a3d26;
+}
+.fc-node.external {
+  background: #1a1a0d;
+  border: 1px solid #3d3a10;
+}
+.fc-node.data {
+  background: #1a0d1f;
+  border: 1px solid #3d1a5f;
+}
+.fc-node.decision {
+  background: #1f1a0a;
+  border: 1px solid #5f3a10;
+  border-radius: 6px;
+  transform: rotate(0deg);
+}
+.fc-node-icon {
+  font-size: 18px;
+  margin-bottom: 5px;
+}
+.fc-node-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #e2e8f0;
+  margin-bottom: 3px;
+  line-height: 1.3;
+}
+.fc-node-sub {
+  font-size: 9px;
+  color: #475569;
+  line-height: 1.5;
+}
+.fc-node-file {
+  font-family: monospace;
+  font-size: 8px;
+  color: #1e4a6e;
+  margin-top: 5px;
+  display: block;
+}
+.fc-node-badge {
+  display: inline-block;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ─── SCORING FLOWCHART ──────────────────────── */
+.score-flow {
+  max-width: 1100px;
+  margin: 0 auto 40px;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.score-input-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.score-pipeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* Each factor block in the pipeline */
+.sf-block {
+  border: 1px solid #111d30;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.sf-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: #080f1c;
+  border-bottom: 1px solid #111d30;
+}
+.sf-badge {
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.sf-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+.sf-pts {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 800;
+  font-family: monospace;
+  flex-shrink: 0;
+}
+.sf-body {
+  padding: 8px 12px;
+  background: #060d18;
+}
+.sf-code {
+  font-family: monospace;
+  font-size: 10px;
+  color: #475569;
+  line-height: 1.8;
+}
+.sf-code .kw  { color: #60a5fa; }
+.sf-code .fn  { color: #a78bfa; }
+.sf-code .str { color: #4ade80; }
+.sf-code .num { color: #fb923c; }
+.sf-code .cmt { color: #1e3a5f; }
+.sf-code .new { color: #fbbf24; }  /* highlight: new multi-goals code */
+
+.sf-connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2px 0;
+}
+.sf-vline {
+  width: 2px;
+  height: 12px;
+  background: #0f1929;
+}
+.sf-vhead {
+  width: 0; height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 6px solid #0f1929;
+}
+
+/* Inputs panel */
+.input-panel {
+  background: #080f1c;
+  border: 1px solid #111d30;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+.input-panel-title {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #1e3a5f;
+  margin-bottom: 10px;
+}
+.input-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 7px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid #0a1220;
+}
+.input-row:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+.input-key {
+  font-size: 10px;
+  color: #64748b;
+  font-family: monospace;
+}
+.input-val {
+  font-size: 9px;
+  color: #94a3b8;
+  font-family: monospace;
+  text-align: right;
+  max-width: 110px;
+  line-height: 1.4;
+}
+.input-val.arr { color: #4ade80; }
+
+.arrow-right-block {
+  display: flex;
+  align-items: flex-start;
+  padding-top: 80px;
+  padding-right: 8px;
+  flex-shrink: 0;
+}
+
+/* ─── GOAL LOOP DIAGRAM ──────────────────────── */
+.goal-loop {
+  max-width: 1100px;
+  margin: 0 auto 40px;
+  background: #060d18;
+  border: 1px solid #111d30;
+  border-radius: 14px;
+  overflow: hidden;
+}
+.goal-loop-header {
+  background: #080f1c;
+  padding: 14px 20px;
+  border-bottom: 1px solid #111d30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.goal-loop-body {
+  padding: 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.goal-branch {
+  border-radius: 8px;
+  padding: 12px;
+  border: 1px solid;
+}
+.goal-branch.tools    { background: #0a1f10; border-color: #1a4a26; }
+.goal-branch.strategy { background: #0a100d; border-color: #1a3020; }
+.goal-branch.build    { background: #0a0d1f; border-color: #1a1a4a; }
+.goal-branch.inform   { background: #1a1500; border-color: #4a3a00; }
+.goal-branch-label {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 6px;
+}
+.goal-branch.tools    .goal-branch-label { color: #4ade80; }
+.goal-branch.strategy .goal-branch-label { color: #34d399; }
+.goal-branch.build    .goal-branch-label { color: #818cf8; }
+.goal-branch.inform   .goal-branch-label { color: #fbbf24; }
+.goal-branch-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #cbd5e1;
+  margin-bottom: 5px;
+}
+.goal-branch-body {
+  font-size: 9px;
+  color: #475569;
+  line-height: 1.7;
+  font-family: monospace;
+}
+.goal-branch-pts {
+  font-size: 11px;
+  font-weight: 800;
+  font-family: monospace;
+  color: #4ade80;
+  margin-top: 6px;
+}
+.goal-loop-loop-indicator {
+  background: #0a1628;
+  border: 1px solid #1e3a5f;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-family: monospace;
+  font-size: 10px;
+  color: #334155;
+  line-height: 1.8;
+}
+.goal-loop-loop-indicator .hl { color: #fbbf24; }
+.goal-loop-loop-indicator .kw { color: #60a5fa; }
+.goal-loop-loop-indicator .fn { color: #a78bfa; }
+
+/* ─── TAGS ───────────────────────────────────── */
+.tag-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.tag {
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  background: #0f1929;
+  color: #475569;
+  border: 1px solid #1e293b;
+}
+.tag.g { color: #4ade80; background: #0a1f10; border-color: #1a4a26; }
+.tag.b { color: #60a5fa; background: #0a1628; border-color: #1e3a5f; }
+.tag.o { color: #fb923c; background: #1f1008; border-color: #5a2a10; }
+.tag.r { color: #f87171; background: #1f0808; border-color: #5a1010; }
+
+/* ─── FINAL CLAMP ────────────────────────────── */
+.clamp-box {
+  max-width: 1100px;
+  margin: 0 auto 40px;
+  background: #060d18;
+  border: 1px solid #1e3a5f;
+  border-radius: 12px;
+  padding: 20px 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 24px;
+  align-items: center;
+}
+.clamp-formula {
+  font-family: monospace;
+  font-size: 14px;
+  color: #60a5fa;
+  line-height: 2;
+  text-align: center;
+}
+.clamp-formula .op  { color: #475569; }
+.clamp-formula .fn  { color: #a78bfa; }
+.clamp-formula .num { color: #fb923c; }
+.clamp-formula .cmt { display: block; font-size: 10px; color: #1e3a5f; margin-top: 4px; }
+
+.clamp-example {
+  border-left: 2px solid #1e3a5f;
+  padding-left: 16px;
+}
+.clamp-ex-label {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #334155;
+  margin-bottom: 8px;
+}
+.clamp-ex-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 5px;
+}
+.clamp-ex-factor {
+  font-size: 10px;
+  color: #475569;
+}
+.clamp-ex-pts {
+  font-size: 10px;
+  font-weight: 700;
+  font-family: monospace;
+}
+.pos { color: #4ade80; }
+.neg { color: #f87171; }
+.tot { color: #e2e8f0; border-top: 1px solid #1e293b; margin-top: 4px; padding-top: 4px; }
+
+.changed-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: #1f1500;
+  color: #fbbf24;
+  border: 1px solid #4a3500;
+}
+</style>
+</head>
+<body>
+
+<h1>Distill AI — System Architecture</h1>
+<p class="subtitle">End-to-end flow · Scoring model · Multi-goal implementation</p>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     SECTION 1: SYSTEM FLOWCHART
+══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <span class="section-num">01</span>
+  <span class="section-title">System flowchart — request to rendered briefing</span>
+  <div class="section-rule"></div>
+</div>
+
+<!-- ROW 1: User enters → Auth check → Profile load -->
+<div class="flowchart">
+
+  <div class="fc-row">
+    <div class="fc-node browser">
+      <div class="fc-node-icon">🌐</div>
+      <div class="fc-node-title">Browser</div>
+      <div class="fc-node-sub">User lands on distill-ai.vercel.app</div>
+      <span class="fc-node-file">src/app/page.tsx</span>
+    </div>
+
+    <div class="fc-hconn">
+      <div style="display:flex;align-items:center;">
+        <div class="fc-hline"></div>
+        <div class="fc-hhead"></div>
+      </div>
+      <div class="fc-hconn-label">session cookie</div>
+    </div>
+
+    <div class="fc-node server">
+      <div class="fc-node-icon">🔐</div>
+      <div class="fc-node-title">Auth Check</div>
+      <div class="fc-node-sub">Supabase JWT verified on every request</div>
+      <span class="fc-node-file">lib/supabase/auth.ts</span>
+    </div>
+
+    <div class="fc-hconn">
+      <div style="display:flex;align-items:center;">
+        <div class="fc-hline"></div>
+        <div class="fc-hhead"></div>
+      </div>
+      <div class="fc-hconn-label">GET /api/profile</div>
+    </div>
+
+    <div class="fc-node data">
+      <div class="fc-node-icon">👤</div>
+      <div class="fc-node-title">Profile API</div>
+      <div class="fc-node-sub">Reads saved onboarding answers from Supabase</div>
+      <span class="fc-node-file">api/profile/route.ts</span>
+    </div>
+
+    <div class="fc-hconn">
+      <div style="display:flex;align-items:center;">
+        <div class="fc-hline"></div>
+        <div class="fc-hhead"></div>
+      </div>
+      <div class="fc-hconn-label">UserProfile JSON</div>
+    </div>
+
+    <div class="fc-node decision">
+      <div class="fc-node-icon">🔀</div>
+      <div class="fc-node-title">Has Profile?</div>
+      <div class="fc-node-sub">role + industry required to skip onboarding</div>
+      <div style="margin-top:6px;display:flex;gap:4px;">
+        <span class="fc-node-badge" style="background:#14291e;color:#4ade80;border:1px solid #1a4a26;">yes → briefing</span>
+        <span class="fc-node-badge" style="background:#2d1515;color:#f87171;border:1px solid #4a2020;">no → onboard</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vertical connector down from "Has Profile?" yes branch -->
+  <div class="fc-vconn right">
+    <div class="fc-vline" style="height:20px;"></div>
+    <div class="fc-vhead"></div>
+  </div>
+
+  <!-- ROW 2: Briefing API -->
+  <div class="fc-row" style="justify-content:flex-end;padding-right:0;">
+    <div class="fc-node browser" style="min-width:160px;">
+      <div class="fc-node-icon">🗂️</div>
+      <div class="fc-node-title">Onboarding UI</div>
+      <div class="fc-node-sub">3 steps · 6 questions<br>Saves to Supabase on complete</div>
+      <span class="fc-node-file">page.tsx — onboardingStep 0–2</span>
+    </div>
+
+    <div class="fc-hconn" style="transform:rotate(180deg);">
+      <div style="display:flex;align-items:center;">
+        <div class="fc-hline" style="width:60px;"></div>
+        <div class="fc-hhead"></div>
+      </div>
+    </div>
+
+    <div class="fc-node server" style="max-width:200px;">
+      <div class="fc-node-icon">⚡</div>
+      <div class="fc-node-title">Briefing API</div>
+      <div class="fc-node-sub">
+        GET /api/briefing<br>
+        Params: role, industry, comfort,<br>
+        <strong style="color:#fbbf24;">goals</strong> (comma-sep), aiTools, _t
+      </div>
+      <span class="fc-node-file">api/briefing/route.ts</span>
+    </div>
+  </div>
+
+  <div class="fc-vconn right" style="padding-right:30px;">
+    <div class="fc-vline" style="height:20px;"></div>
+    <div class="fc-vhead"></div>
+  </div>
+
+  <!-- ROW 3: RSS + Score + LLM -->
+  <div class="fc-row" style="justify-content:center;gap:0;">
+
+    <div class="fc-node external" style="min-width:150px;">
+      <div class="fc-node-icon">📡</div>
+      <div class="fc-node-title">RSS Layer</div>
+      <div class="fc-node-sub">13 feeds · 20 articles each<br>Parallel fetch via rss-parser<br>Timeout: 8s per feed</div>
+      <span class="fc-node-file">loadArticles() → 120 cap</span>
+    </div>
+
+    <div class="fc-hconn">
+      <div style="display:flex;align-items:center;">
+        <div class="fc-hline"></div>
+        <div class="fc-hhead"></div>
+      </div>
+      <div class="fc-hconn-label">120 Articles[]</div>
+    </div>
+
+    <div class="fc-node server" style="min-width:160px;">
+      <div class="fc-node-icon">🧮</div>
+      <div class="fc-node-title">Scoring Engine</div>
+      <div class="fc-node-sub">scoreArticle() × 120<br>Returns score 0–100<br>+ factor breakdown</div>
+      <span class="fc-node-file">recommender/score.ts</span>
+    </div>
+
+    <div class="fc-hconn">
+      <div style="display:flex;align-items:center;">
+        <div class="fc-hline"></div>
+        <div class="fc-hhead"></div>
+      </div>
+      <div class="fc-hconn-label">top 8 ScoredArticle[]</div>
+    </div>
+
+    <div class="fc-node external" style="min-width:150px;">
+      <div class="fc-node-icon">🤖</div>
+      <div class="fc-node-title">Groq LLM</div>
+      <div class="fc-node-sub">Llama 3.1 8B instant<br>All 8 articles in 1 call<br>"why it matters" ≤22 words</div>
+      <span class="fc-node-file">buildWhyItMattersBatch()</span>
+    </div>
+
+    <div class="fc-hconn">
+      <div style="display:flex;align-items:center;">
+        <div class="fc-hline"></div>
+        <div class="fc-hhead"></div>
+      </div>
+      <div class="fc-hconn-label">string[8]</div>
+    </div>
+
+    <div class="fc-node server" style="min-width:140px;">
+      <div class="fc-node-icon">🔧</div>
+      <div class="fc-node-title">Assembly</div>
+      <div class="fc-node-sub">buildComfortSummary()<br>Merges score + LLM text<br>→ BriefingItem[]</div>
+      <span class="fc-node-file">route.ts:213–223</span>
+    </div>
+  </div>
+
+  <div class="fc-vconn">
+    <div class="fc-vline" style="height:20px;"></div>
+    <div class="fc-vhead"></div>
+  </div>
+
+  <!-- ROW 4: Response → Browser -->
+  <div class="fc-row">
+    <div class="fc-node browser" style="min-width:160px;">
+      <div class="fc-node-icon">📋</div>
+      <div class="fc-node-title">Briefing UI</div>
+      <div class="fc-node-sub">8 ranked articles · chat tab · tools tab<br>Optional: ElevenLabs audio overview</div>
+      <span class="fc-node-file">page.tsx — briefingItems state</span>
+    </div>
+
+    <div class="fc-hconn" style="transform:rotate(180deg);">
+      <div style="display:flex;align-items:center;">
+        <div class="fc-hline" style="width:80px;"></div>
+        <div class="fc-hhead"></div>
+      </div>
+      <div class="fc-hconn-label" style="transform:rotate(180deg);">JSON { items[], _debug }</div>
+    </div>
+
+    <div class="fc-node server" style="min-width:160px;">
+      <div class="fc-node-icon">📤</div>
+      <div class="fc-node-title">JSON Response</div>
+      <div class="fc-node-sub">
+        items: BriefingItem[8]<br>
+        _debug: { role, industry,<br>
+        comfort, <strong style="color:#fbbf24;">goals[]</strong>, whySource }
+      </div>
+      <div style="margin-top:6px;">
+        <span class="tag g">CDN-Cache-Control: no-store</span>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /flowchart -->
+
+
+<!-- ─── Narrative: System ─────────────────────── -->
+<div class="narrative three">
+
+  <div class="nar-block">
+    <div class="nar-eyebrow">Caching layer</div>
+    <div class="nar-heading">Three independent caches, all must be defeated</div>
+    <div class="nar-body">
+      Next.js patches <code>fetch</code> and caches responses by default — <code>unstable_noStore()</code> opts out at the function level. The Vercel edge CDN caches before the serverless function runs — <code>CDN-Cache-Control: no-store</code> stops it. The browser caches identical GET URLs — <code>_t: Date.now()</code> makes every request URL unique. All three are active in this codebase.
+    </div>
+  </div>
+
+  <div class="nar-block">
+    <div class="nar-eyebrow">RSS Layer</div>
+    <div class="nar-heading">13 feeds, parallel fetch, 120-article pool</div>
+    <div class="nar-body">
+      All feeds are fetched concurrently via <code>Promise.all()</code> with an 8-second per-feed timeout. Articles are flattened, sorted by <code>published</code> descending, then capped at 120 before scoring. The bottleneck is always the slowest RSS feed — scoring 120 articles is near-instant by comparison. The 120 cap keeps scoring time negligible as feed count grows.
+    </div>
+  </div>
+
+  <div class="nar-block">
+    <div class="nar-eyebrow">LLM Layer</div>
+    <div class="nar-heading">One Groq call for all 8 articles, rule-based fallback</div>
+    <div class="nar-body">
+      All 8 ranked articles are sent in a single prompt to <strong>Llama 3.1 8B</strong> (Groq free tier). The model returns a JSON array of 8 personalized sentences, each under 22 words, referencing the actual article content. If Groq fails or returns malformed output, a role-aware rule-based fallback fires silently. <code>_debug.whySource</code> tells you which path ran — <em>"claude"</em> (Groq succeeded) or <em>"fallback"</em>.
+    </div>
+  </div>
+
+</div>
+
+
+<div class="section-gap"></div>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     SECTION 2: scoreArticle() INTERNALS
+══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <span class="section-num">02</span>
+  <span class="section-title">scoreArticle() — how a single article gets its 0–100 score</span>
+  <div class="section-rule"></div>
+</div>
+
+<div class="score-flow">
+
+  <!-- Left: inputs panel -->
+  <div class="score-input-col">
+
+    <div class="input-panel">
+      <div class="input-panel-title">UserProfile (input)</div>
+      <div class="input-row">
+        <span class="input-key">role</span>
+        <span class="input-val">"engineering"</span>
+      </div>
+      <div class="input-row">
+        <span class="input-key">industry</span>
+        <span class="input-val">"technology"</span>
+      </div>
+      <div class="input-row">
+        <span class="input-key">comfort</span>
+        <span class="input-val">"power"</span>
+      </div>
+      <div class="input-row">
+        <span class="input-key">goals</span>
+        <span class="input-val arr">["build",<br>"find-tools"]</span>
+      </div>
+      <div class="input-row">
+        <span class="input-key">aiTools</span>
+        <span class="input-val">["Cursor",<br>"Claude"]</span>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;align-items:center;padding:4px 0;">
+      <div style="width:2px;height:16px;background:#0f1929;"></div>
+      <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #0f1929;"></div>
+    </div>
+
+    <div class="input-panel">
+      <div class="input-panel-title">Article (input)</div>
+      <div class="input-row">
+        <span class="input-key">title</span>
+        <span class="input-val">"OpenAI Agent SDK Launches"</span>
+      </div>
+      <div class="input-row">
+        <span class="input-key">summary</span>
+        <span class="input-val">"new api, sdk, agentic workflows..."</span>
+      </div>
+      <div class="input-row">
+        <span class="input-key">published</span>
+        <span class="input-val">14h ago</span>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;align-items:center;padding:4px 0;">
+      <div style="width:2px;height:16px;background:#0f1929;"></div>
+      <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #0f1929;"></div>
+    </div>
+
+    <div class="input-panel" style="background:#090d14;border-color:#1e3a5f;">
+      <div class="input-panel-title" style="color:#1e4a80;">Scoring corpus</div>
+      <div style="font-family:monospace;font-size:9px;color:#334155;line-height:1.7;">
+        corpus = title + " " + summary<br>
+        <span style="color:#1e4a80;">// lowercase, single pass</span><br>
+        <span style="color:#60a5fa;">contains</span>(corpus, terms) → bool<br>
+        <span style="color:#60a5fa;">countMatches</span>(corpus, terms) → n
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;align-items:center;padding:4px 0;">
+      <div style="width:2px;height:16px;background:#0f1929;"></div>
+      <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #0f1929;"></div>
+    </div>
+
+    <div class="input-panel" style="background:#0a1f10;border-color:#1a4a26;">
+      <div class="input-panel-title" style="color:#1a4a26;">Output</div>
+      <div style="font-family:monospace;font-size:10px;color:#334155;line-height:1.8;">
+        score: <span style="color:#4ade80;">87</span> <span style="color:#1e3a5f;">// 0–100</span><br>
+        breakdown: ScoreFactor[]<br>
+        &nbsp;&nbsp;{ factor, points }
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right: scoring pipeline -->
+  <div class="score-pipeline">
+
+    <div class="sf-block">
+      <div class="sf-header">
+        <span class="sf-badge" style="background:#1a2535;color:#94a3b8;border:1px solid #2d3f55;">ALWAYS</span>
+        <span class="sf-title">Base score</span>
+        <span class="sf-pts" style="color:#fbbf24;">+20</span>
+      </div>
+      <div class="sf-body">
+        <div class="sf-code">
+          factors.<span class="fn">push</span>({ factor: <span class="str">"base"</span>, points: <span class="num">20</span> })<br>
+          <span class="cmt">// floor — no article scores zero for existing</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sf-connector"><div class="sf-vline"></div><div class="sf-vhead"></div></div>
+
+    <div class="sf-block" style="border-color:#1a3d26;">
+      <div class="sf-header" style="background:#0a1410;">
+        <span class="sf-badge" style="background:#0a1f10;color:#4ade80;border:1px solid #1a4a26;">GOALS <span class="changed-pill" style="margin-left:4px;">updated</span></span>
+        <span class="sf-title" style="color:#4ade80;">Multi-goal scoring loop</span>
+        <span class="sf-pts" style="color:#4ade80;">+8–24 per goal</span>
+      </div>
+      <div class="sf-body" style="background:#060e08;">
+        <div class="sf-code">
+          <span class="cmt">// Previously: switch(profile.goal) — only goals[0] ever ran</span><br>
+          <span class="cmt">// Now: every selected goal contributes independently</span><br>
+          <br>
+          <span class="kw">for</span> (<span class="kw">const</span> <span class="new">goal</span> <span class="kw">of</span> profile.<span class="new">goals</span>) {<br>
+          &nbsp;&nbsp;<span class="kw">switch</span> (goal) {<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">case</span> <span class="str">"find-tools"</span>: {<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hits = <span class="fn">countMatches</span>(corpus, TOOL_LAUNCH_KEYWORDS)<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;points = <span class="fn">Math.min</span>(hits * <span class="num">8</span>, <span class="num">24</span>)<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">case</span> <span class="str">"strategic-decisions"</span>: {<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hits = <span class="fn">countMatches</span>(corpus, STRATEGIC_KEYWORDS)<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;points = <span class="fn">Math.min</span>(hits * <span class="num">8</span>, <span class="num">24</span>)<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">case</span> <span class="str">"build"</span>: {<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;hits = <span class="fn">countMatches</span>(corpus, BUILD_KEYWORDS)<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;points = <span class="fn">Math.min</span>(hits * <span class="num">8</span>, <span class="num">24</span>)<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;}<br>
+          &nbsp;&nbsp;}<br>
+          }<br>
+          <br>
+          <span class="cmt">// stay-informed/curiosity share the same +8 signal — applied once</span><br>
+          <span class="kw">if</span> (profile.goals.<span class="fn">some</span>(g => g === <span class="str">"stay-informed"</span> || g === <span class="str">"curiosity"</span>))<br>
+          &nbsp;&nbsp;<span class="kw">if</span> (<span class="fn">contains</span>(corpus, [<span class="str">"announced"</span>, <span class="str">"launches"</span>, <span class="str">"released"</span>]))<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;points += <span class="num">8</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sf-connector"><div class="sf-vline"></div><div class="sf-vhead"></div></div>
+
+    <div class="sf-block">
+      <div class="sf-header">
+        <span class="sf-badge" style="background:#1a1a3a;color:#a78bfa;border:1px solid #2d2d5a;">COMFORT</span>
+        <span class="sf-title">Comfort level signal</span>
+        <span class="sf-pts" style="color:#a78bfa;">+15 / −15</span>
+      </div>
+      <div class="sf-body">
+        <div class="sf-code">
+          isTechnical = <span class="fn">contains</span>(corpus, TECHNICAL_KEYWORDS)<br>
+          <span class="cmt">// binary flag today — opportunity: grade 0/1/2+ tiers</span><br>
+          <br>
+          skeptic:  <span class="cmt">+12 if strategic, −15 if technical</span><br>
+          beginner: <span class="cmt">−8 if technical</span><br>
+          active:   <span class="cmt">+10 for "vs / compared to / alternative"</span><br>
+          power:    <span class="cmt">+15 if technical</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sf-connector"><div class="sf-vline"></div><div class="sf-vhead"></div></div>
+
+    <div class="sf-block">
+      <div class="sf-header">
+        <span class="sf-badge" style="background:#2a1a1a;color:#fb923c;border:1px solid #5a2a1a;">ROLE</span>
+        <span class="sf-title">Role signal</span>
+        <span class="sf-pts" style="color:#fb923c;">+15 / −12</span>
+      </div>
+      <div class="sf-body">
+        <div class="sf-code">
+          role = profile.role.<span class="fn">toLowerCase</span>()<br>
+          <span class="cmt">// substring match, 8 role branches:</span><br>
+          executive → <span class="cmt">+12 strategic, −10 pure-technical</span><br>
+          engineering → <span class="cmt">+12 technical, +8 build (stackable)</span><br>
+          product → <span class="cmt">+12 feature/launch keywords</span><br>
+          sales/marketing → <span class="cmt">+12 revenue/campaign keywords</span><br>
+          design → <span class="cmt">+15 design keywords, −10 pure-technical</span><br>
+          legal → <span class="cmt">+15 LEGAL_KEYWORDS, −12 pure-technical</span><br>
+          ops/finance → <span class="cmt">+12 automation/efficiency keywords</span><br>
+          research → <span class="cmt">+12 paper/benchmark/arxiv keywords</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sf-connector"><div class="sf-vline"></div><div class="sf-vhead"></div></div>
+
+    <div class="sf-block">
+      <div class="sf-header">
+        <span class="sf-badge" style="background:#2a1a2a;color:#c084fc;border:1px solid #5a2a5a;">INDUSTRY</span>
+        <span class="sf-title">Industry keyword match</span>
+        <span class="sf-pts" style="color:#c084fc;">+6–18</span>
+      </div>
+      <div class="sf-body">
+        <div class="sf-code">
+          terms = INDUSTRY_KEYWORDS[profile.industry]<br>
+          hits = <span class="fn">countMatches</span>(corpus, terms)<br>
+          points = <span class="fn">Math.min</span>(hits * <span class="num">6</span>, <span class="num">18</span>)<br>
+          <span class="cmt">// + flat +6 if industry === "Technology / Software"</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sf-connector"><div class="sf-vline"></div><div class="sf-vhead"></div></div>
+
+    <div class="sf-block">
+      <div class="sf-header">
+        <span class="sf-badge" style="background:#14201a;color:#34d399;border:1px solid #1a4a2a;">DEDUP</span>
+        <span class="sf-title">AI tools de-duplication</span>
+        <span class="sf-pts" style="color:#f87171;">−15</span>
+      </div>
+      <div class="sf-body">
+        <div class="sf-code">
+          <span class="kw">for</span> (<span class="kw">const</span> tool <span class="kw">of</span> profile.aiTools) {<br>
+          &nbsp;&nbsp;<span class="kw">if</span> (<span class="fn">contains</span>(corpus, TOOL_KEYWORDS[tool]))<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">if</span> (<span class="fn">contains</span>(corpus, [<span class="str">"how to"</span>, <span class="str">"getting started"</span>,<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="str">"introduction"</span>, <span class="str">"what is"</span>, <span class="str">"tutorial"</span>]))<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;points -= <span class="num">15</span> <span class="cmt">// suppress intro content for known tools</span><br>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="sf-connector"><div class="sf-vline"></div><div class="sf-vhead"></div></div>
+
+    <div class="sf-block">
+      <div class="sf-header">
+        <span class="sf-badge" style="background:#14201e;color:#2dd4bf;border:1px solid #1a4a44;">RECENCY</span>
+        <span class="sf-title">Recency bonus</span>
+        <span class="sf-pts" style="color:#2dd4bf;">+5–10</span>
+      </div>
+      <div class="sf-body">
+        <div class="sf-code">
+          ageDays = (Date.<span class="fn">now</span>() - <span class="kw">new</span> <span class="fn">Date</span>(article.published)) / <span class="num">86400000</span><br>
+          ageDays ≤ <span class="num">2</span>  → <span class="cmt">+10  (last 48h)</span><br>
+          ageDays ≤ <span class="num">7</span>  → <span class="cmt">+5   (last 7 days)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="sf-connector"><div class="sf-vline"></div><div class="sf-vhead"></div></div>
+
+    <div class="sf-block" style="border-color:#1e3a5f;background:#070d1a;">
+      <div class="sf-header" style="background:#080f1c;border-color:#1e3a5f;">
+        <span class="sf-badge" style="background:#1e3a5f;color:#60a5fa;border:1px solid #2d5282;">CLAMP</span>
+        <span class="sf-title" style="color:#60a5fa;">Final score</span>
+        <span class="sf-pts" style="color:#a78bfa;">Math.clamp(Σ, 0, 100)</span>
+      </div>
+      <div class="sf-body" style="background:#060d18;">
+        <div class="sf-code">
+          raw = factors.<span class="fn">reduce</span>((sum, f) => sum + f.points, <span class="num">0</span>)<br>
+          score = <span class="fn">Math.max</span>(<span class="num">0</span>, <span class="fn">Math.min</span>(<span class="num">100</span>, raw))<br>
+          <span class="cmt">// theoretical max (multi-goal): 20+24+24+15+15+18+6+10 = 132</span><br>
+          <span class="cmt">// always clamped — over-scoring doesn't inflate ranking</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div><!-- /score-flow -->
+
+
+<div class="section-gap"></div>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     SECTION 3: MULTI-GOAL BRANCH DIAGRAM
+══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <span class="section-num">03</span>
+  <span class="section-title">Multi-goal loop — what each goal branch scores against</span>
+  <div class="section-rule"></div>
+</div>
+
+<div class="goal-loop">
+  <div class="goal-loop-header">
+    <span class="changed-pill">Updated</span>
+    <span style="font-size:12px;font-weight:700;color:#cbd5e1;margin-left:4px;">
+      for (const goal of profile.goals) — every selected goal contributes
+    </span>
+    <span style="margin-left:auto;font-size:10px;color:#334155;font-family:monospace;">recommender/score.ts:37–61</span>
+  </div>
+
+  <div style="padding:16px 20px 0;">
+    <div class="goal-loop-loop-indicator">
+      <span class="kw">for</span> (<span class="kw">const</span> <span class="hl">goal</span> <span class="kw">of</span> profile.goals)  <span style="color:#1e3a5f;">// e.g. ["build", "find-tools"]</span><br>
+      &nbsp;&nbsp;<span class="kw">switch</span> (<span class="hl">goal</span>) → score each branch independently → <span class="fn">factors.push</span>(...)<br>
+      <br>
+      stay-informed / curiosity → checked once via <span class="fn">.some()</span> after the loop <span style="color:#1e3a5f;">// prevents double-counting</span>
+    </div>
+  </div>
+
+  <div class="goal-loop-body">
+
+    <div class="goal-branch tools">
+      <div class="goal-branch-label">find-tools</div>
+      <div class="goal-branch-title">Tool discovery</div>
+      <div class="goal-branch-body">
+        Keywords: TOOL_LAUNCH_KEYWORDS<br><br>
+        "launch", "plugin",<br>
+        "integration", "release",<br>
+        "new feature", "available",<br>
+        "free tier", "update"<br>
+        <br>
+        hits = countMatches()<br>
+        points = min(hits × 8, 24)
+      </div>
+      <div class="goal-branch-pts">+8 → +24</div>
+    </div>
+
+    <div class="goal-branch strategy">
+      <div class="goal-branch-label">strategic-decisions</div>
+      <div class="goal-branch-title">Business & market</div>
+      <div class="goal-branch-body">
+        Keywords: STRATEGIC_KEYWORDS<br><br>
+        "raises", "funding",<br>
+        "acquisition", "regulation",<br>
+        "enterprise", "ceo",<br>
+        "workforce", "layoffs",<br>
+        "market", "competition"<br><br>
+        hits = countMatches()<br>
+        points = min(hits × 8, 24)
+      </div>
+      <div class="goal-branch-pts">+8 → +24</div>
+    </div>
+
+    <div class="goal-branch build">
+      <div class="goal-branch-label">build</div>
+      <div class="goal-branch-title">Developer / technical</div>
+      <div class="goal-branch-body">
+        Keywords: BUILD_KEYWORDS<br><br>
+        "api", "sdk", "github",<br>
+        "agent", "agentic",<br>
+        "deploy", "fine-tune",<br>
+        "open source", "model",<br>
+        "function calling"<br><br>
+        hits = countMatches()<br>
+        points = min(hits × 8, 24)
+      </div>
+      <div class="goal-branch-pts">+8 → +24</div>
+    </div>
+
+    <div class="goal-branch inform">
+      <div class="goal-branch-label">stay-informed / curiosity</div>
+      <div class="goal-branch-title">General news signal</div>
+      <div class="goal-branch-body">
+        Applied once via .some() —<br>
+        not per-iteration, so selecting<br>
+        both doesn't double-count.<br>
+        <br>
+        Signal words:<br>
+        "announced", "launches",<br>
+        "released", "unveiled"<br>
+        <br>
+        Flat bonus if found.
+      </div>
+      <div class="goal-branch-pts" style="color:#fbbf24;">+8 (once)</div>
+    </div>
+
+  </div>
+
+  <!-- Example walkthrough -->
+  <div style="padding:0 20px 20px;">
+    <div style="background:#0a0f1c;border:1px solid #111d30;border-radius:8px;padding:14px 16px;margin-top:4px;">
+      <div style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:0.1em;color:#1e3a5f;margin-bottom:10px;">Example: goals = ["build", "find-tools"] on article "OpenAI Agent SDK Launches"</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:12px;align-items:start;">
+        <div>
+          <div style="font-size:9px;color:#334155;margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em;">Iteration 1</div>
+          <div style="font-family:monospace;font-size:10px;color:#475569;line-height:1.7;">
+            goal = "build"<br>
+            corpus has: api,<br>sdk, agent, agentic<br>
+            hits = 4<br>
+            <span style="color:#4ade80;">+24 (capped)</span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:#334155;margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em;">Iteration 2</div>
+          <div style="font-family:monospace;font-size:10px;color:#475569;line-height:1.7;">
+            goal = "find-tools"<br>
+            corpus has:<br>launches, available<br>
+            hits = 2<br>
+            <span style="color:#4ade80;">+16</span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:#334155;margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em;">After loop</div>
+          <div style="font-family:monospace;font-size:10px;color:#475569;line-height:1.7;">
+            no stay-informed<br>
+            or curiosity in<br>
+            profile.goals →<br>
+            <span style="color:#334155;">skip</span>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:#334155;margin-bottom:4px;text-transform:uppercase;letter-spacing:.06em;">Other factors</div>
+          <div style="font-family:monospace;font-size:10px;color:#475569;line-height:1.7;">
+            base +20<br>
+            comfort:power +15<br>
+            role:eng +20<br>
+            industry:tech +6<br>
+            recency +10
+          </div>
+        </div>
+        <div style="background:#0a1f10;border:1px solid #1a4a26;border-radius:6px;padding:8px 10px;">
+          <div style="font-size:9px;color:#1a4a26;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Final</div>
+          <div style="font-family:monospace;font-size:10px;color:#475569;line-height:1.7;">
+            raw = 20+24+16<br>
+            +15+20+6+10<br>
+            = 111<br>
+            <span style="color:#4ade80;font-size:12px;font-weight:800;">score = 100</span><br>
+            <span style="color:#1e3a5f;">(clamped)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /goal-loop -->
+
+
+<div class="section-gap"></div>
+
+
+<!-- ══════════════════════════════════════════════════════════════
+     SECTION 4: NARRATIVE — HOW IT ALL HANGS TOGETHER
+══════════════════════════════════════════════════════════════ -->
+<div class="section-header">
+  <span class="section-num">04</span>
+  <span class="section-title">Narrative — design decisions and how each piece connects</span>
+  <div class="section-rule"></div>
+</div>
+
+<div class="narrative">
+
+  <div class="nar-block accent">
+    <div class="nar-eyebrow">Onboarding → Scoring</div>
+    <div class="nar-heading">Six questions, five scoring inputs, one wasted slot</div>
+    <div class="nar-body">
+      The onboarding collects six inputs across three steps. <strong>Name</strong> is cosmetic — it goes into a greeting string and nothing else. The remaining five — <strong>role, industry, comfort, goals, and AI tools</strong> — all feed directly into <code>scoreArticle()</code>.<br><br>
+      Role and industry are the <em>context</em> inputs: they tell the engine what domain and job function matters. Comfort level is the <em>depth filter</em>: it controls whether technical content is a boost or a penalty, and it's the single factor with the widest swing (±30 pts between power and skeptic). Goals are the <em>intent filter</em>: they select which keyword groups get scored. AI tools are a <em>negative signal only</em> — they suppress intro content for tools the user already knows.
+    </div>
+  </div>
+
+  <div class="nar-block accent">
+    <div class="nar-eyebrow">Multi-goal scoring (updated)</div>
+    <div class="nar-heading">Each goal now contributes independently to every article</div>
+    <div class="nar-body">
+      Previously, the scoring engine ran a <code>switch(profile.goal)</code> on a single string — only <code>goals[0]</code> was ever evaluated. If a user picked "Find tools" and "Build things", the build intent was silently ignored.<br><br>
+      The fix replaces the switch with a <code>for...of</code> loop over <code>profile.goals</code>. Each goal hits its own keyword group — <strong>TOOL_LAUNCH_KEYWORDS</strong>, <strong>STRATEGIC_KEYWORDS</strong>, or <strong>BUILD_KEYWORDS</strong> — and adds its contribution independently. <code>stay-informed</code> and <code>curiosity</code> share the same flat <em>+8 news signal</em>, applied once via <code>.some()</code> after the loop to prevent double-counting.<br><br>
+      The per-goal cap remains at +24. Because multiple goals can stack, the theoretical raw maximum rises to 132, but the final <code>clamp(0, 100)</code> ensures no article ever exceeds 100. Scores only inflate when an article genuinely hits multiple keyword groups — which is a signal that it's truly broad-interest content.
+    </div>
+  </div>
+
+</div>
+
+<div class="narrative three">
+
+  <div class="nar-block">
+    <div class="nar-eyebrow">Scoring model design</div>
+    <div class="nar-heading">Keyword-based, not ML — fast and fully inspectable</div>
+    <div class="nar-body">
+      Every factor in <code>scoreArticle()</code> is a keyword lookup or a rule. There's no model to train, no embeddings, no semantic similarity. This is intentional — the entire scoring logic is readable in a single file, every decision is auditable in the <code>scoreBreakdown[]</code> array, and it runs in microseconds across 120 articles.<br><br>
+      The tradeoff is coverage: an article about "AI in emergency rooms" won't score highly for a healthcare user unless the article happens to use specific sector terms. The real fix there is feed diversity, not model complexity.
+    </div>
+  </div>
+
+  <div class="nar-block">
+    <div class="nar-eyebrow">Article text pipeline</div>
+    <div class="nar-heading">Two text fields: RSS verbatim + LLM one-liner</div>
+    <div class="nar-body">
+      Each article surfaces two text outputs. <code>comfortSummary</code> is the raw RSS <code>contentSnippet</code> with one comfort-tuned sentence appended — it's uncontrolled in length (can be 10 words or 500). <code>whyItMatters</code> is the tight output: Groq returns one sentence per article, under 22 words, written specifically for the user's role and industry.<br><br>
+      If Groq fails, a role-aware fallback generates a generic question prompt per article. <code>_debug.whySource</code> in the API response tells you which path ran.
+    </div>
+  </div>
+
+  <div class="nar-block">
+    <div class="nar-eyebrow">API contract</div>
+    <div class="nar-heading">Query params in, JSON out — no request body needed</div>
+    <div class="nar-body">
+      The briefing API is a plain GET endpoint. All user context arrives as query params: <code>role</code>, <code>industry</code>, <code>comfort</code>, <strong><code>goals</code></strong> (comma-separated), <code>aiTools</code> (comma-separated), and <code>_t</code> (timestamp for cache-busting). The response is a JSON object with <code>items[]</code> and a <code>_debug</code> block.<br><br>
+      No auth token is passed in the query string — authentication is via Supabase session cookie, verified server-side at the top of the handler. If the session is invalid, the handler returns the auth error before touching RSS feeds.
+    </div>
+  </div>
+
+</div>
+
+<div class="narrative single">
+  <div class="nar-block" style="border-color:#1e3a5f;background:#060d18;">
+    <div class="nar-eyebrow">What's still on the floor</div>
+    <div class="nar-heading">Known gaps in the current model</div>
+    <div class="nar-body" style="columns:2;column-gap:32px;">
+      <strong>Technicality is binary.</strong> <code>isTechnical</code> is a boolean — one matching keyword has the same weight as twenty. An article barely mentioning "api" penalises a skeptic as hard as a deep benchmark paper. Grading this 0/1/2+ tiers would improve signal quality with minimal code change.<br><br>
+      <strong>Industry coverage is skewed.</strong> All 13 RSS feeds are AI/tech-focused. Healthcare, finance, legal, and retail users score on industry keywords only when AI news happens to mention their sector — which is rare. The tech industry gets a blanket <em>+6</em> that no other vertical has. Adding 1–2 sector-specific feeds per vertical is the fix.<br><br>
+      <strong><code>tryThis</code> is a dead field.</strong> The <code>BriefingItem</code> type declares <code>tryThis?: string</code> and the static onboarding examples show it with high-quality copy. But the live API never populates it — the field is always <code>undefined</code>. Extending the Groq prompt to return both <code>whyItMatters</code> and <code>tryThis</code> as a JSON object would activate it with no new API call.<br><br>
+      <strong>Seniority and company size are missing.</strong> An IC engineer and a VP of Engineering score identically. A 5-person startup founder and a Fortune 500 exec get the same treatment. Both are high-signal differentiators for content ranking and for personalizing the Groq prompt.
+    </div>
+  </div>
+</div>
+
+
+</body>
+</html>

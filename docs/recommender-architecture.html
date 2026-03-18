@@ -1,0 +1,1792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Distill AI — Recommender Architecture</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a0a0f;
+    color: #e2e8f0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    min-height: 100vh;
+    padding: 40px 24px 80px;
+  }
+
+  h1 {
+    text-align: center;
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #f8fafc;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 13px;
+    color: #64748b;
+    margin-bottom: 56px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  /* ── Section headers ──────────────────────────────── */
+  .section-label {
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #334155;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    max-width: 1280px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: #1e293b;
+  }
+
+  .section-gap { height: 56px; }
+
+  /* ── ONBOARDING FLOW ─────────────────────────────── */
+  .onboarding-flow {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: flex;
+    align-items: flex-start;
+    gap: 0;
+  }
+
+  .ob-step {
+    flex: 1;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .ob-step-header {
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid #1e293b;
+    background: #111827;
+  }
+  .ob-step-num {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #1e3a5f;
+    color: #60a5fa;
+    font-size: 10px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .ob-step-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #e2e8f0;
+  }
+  .ob-step-sub {
+    font-size: 10px;
+    color: #475569;
+    margin-left: auto;
+  }
+
+  .ob-question {
+    padding: 11px 14px;
+    border-bottom: 1px solid #111827;
+  }
+  .ob-question:last-child { border-bottom: none; }
+
+  .ob-q-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #cbd5e1;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ob-q-sub {
+    font-size: 10px;
+    color: #475569;
+    line-height: 1.5;
+    margin-bottom: 6px;
+  }
+  .ob-q-impact {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 4px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .impact-high    { background: #14291e; color: #4ade80; border: 1px solid #1a3d26; }
+  .impact-medium  { background: #1a1e2a; color: #60a5fa; border: 1px solid #1d3d6e; }
+  .impact-low     { background: #1e1a14; color: #94a3b8; border: 1px solid #334155; }
+  .impact-penalty { background: #2d1515; color: #f87171; border: 1px solid #4a2020; }
+  .impact-none    { background: #151515; color: #475569; border: 1px solid #252525; }
+  .impact-bug     { background: #2d1f10; color: #fb923c; border: 1px solid #5a3010; }
+
+  .ob-q-pts {
+    font-size: 12px;
+    font-weight: 800;
+    font-family: monospace;
+    margin-left: auto;
+    color: #4ade80;
+    flex-shrink: 0;
+  }
+  .ob-q-pts.neg { color: #f87171; }
+  .ob-q-pts.zero { color: #334155; }
+
+  .ob-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    padding-top: 60px;
+    flex-shrink: 0;
+    gap: 3px;
+    color: #334155;
+  }
+  .ob-arrow-line {
+    width: 2px;
+    height: 40px;
+    background: linear-gradient(to bottom, #1e293b, #334155);
+  }
+  .ob-arrow-head {
+    width: 0; height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 7px solid #334155;
+  }
+
+  /* ── WEIGHT BARS ─────────────────────────────────── */
+  .weight-grid {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  .weight-panel {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .weight-panel-title {
+    font-size: 11px;
+    font-weight: 700;
+    color: #94a3b8;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .weight-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 9px;
+  }
+  .weight-row:last-child { margin-bottom: 0; }
+  .weight-label {
+    font-size: 10px;
+    color: #64748b;
+    width: 120px;
+    flex-shrink: 0;
+  }
+  .weight-label strong { color: #94a3b8; }
+  .weight-bar-wrap {
+    flex: 1;
+    height: 6px;
+    background: #1e293b;
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .weight-bar { height: 100%; border-radius: 99px; }
+  .weight-pts {
+    font-size: 10px;
+    font-weight: 700;
+    font-family: monospace;
+    width: 50px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .weight-source {
+    font-size: 9px;
+    color: #334155;
+    width: 80px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* ── ARTICLE OUTPUT ──────────────────────────────── */
+  .output-grid {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+  }
+  .output-panel {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .output-panel-header {
+    padding: 10px 14px;
+    border-bottom: 1px solid #1e293b;
+    background: #111827;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .output-panel-header .badge {
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    padding: 2px 7px;
+    border-radius: 4px;
+  }
+  .output-panel-body {
+    padding: 12px 14px;
+  }
+  .output-row {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #111827;
+  }
+  .output-row:last-child { margin-bottom: 0; padding-bottom: 0; border-bottom: none; }
+  .output-row-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #475569;
+    margin-bottom: 4px;
+  }
+  .output-row-value {
+    font-size: 11px;
+    color: #94a3b8;
+    line-height: 1.5;
+  }
+  .output-row-code {
+    font-family: monospace;
+    font-size: 10px;
+    color: #64748b;
+    background: #070d1a;
+    padding: 7px 9px;
+    border-radius: 6px;
+    border: 1px solid #1e293b;
+    line-height: 1.7;
+    margin-top: 4px;
+  }
+  .hl-green { color: #4ade80; }
+  .hl-blue  { color: #60a5fa; }
+  .hl-orange { color: #fb923c; }
+  .hl-red   { color: #f87171; }
+  .hl-purple { color: #a78bfa; }
+  .hl-dim   { color: #334155; }
+
+  /* ── OPPORTUNITIES ───────────────────────────────── */
+  .opp-grid {
+    max-width: 1280px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .opp-card {
+    border-radius: 12px;
+    padding: 15px;
+    border: 1px solid;
+    position: relative;
+    overflow: hidden;
+  }
+  .opp-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .opp-card.critical {
+    background: #1a0e0e;
+    border-color: #4a1f1f;
+  }
+  .opp-card.critical::before { background: linear-gradient(90deg, #ef4444, #dc2626); }
+  .opp-card.high {
+    background: #1a140a;
+    border-color: #4a3010;
+  }
+  .opp-card.high::before { background: linear-gradient(90deg, #f59e0b, #fb923c); }
+  .opp-card.medium {
+    background: #0e1420;
+    border-color: #1d3a5f;
+  }
+  .opp-card.medium::before { background: linear-gradient(90deg, #3b82f6, #6366f1); }
+  .opp-card.low {
+    background: #0e1a14;
+    border-color: #1a3d26;
+  }
+  .opp-card.low::before { background: linear-gradient(90deg, #22c55e, #16a34a); }
+
+  .opp-severity {
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+  }
+  .opp-card.critical .opp-severity { color: #ef4444; }
+  .opp-card.high     .opp-severity { color: #f59e0b; }
+  .opp-card.medium   .opp-severity { color: #60a5fa; }
+  .opp-card.low      .opp-severity { color: #22c55e; }
+
+  .opp-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #e2e8f0;
+    margin-bottom: 6px;
+    line-height: 1.4;
+  }
+  .opp-body {
+    font-size: 11px;
+    color: #64748b;
+    line-height: 1.6;
+  }
+  .opp-code {
+    font-family: monospace;
+    font-size: 10px;
+    color: #475569;
+    background: #070d1a;
+    padding: 5px 8px;
+    border-radius: 5px;
+    border: 1px solid #1e293b;
+    margin: 6px 0;
+    display: block;
+  }
+  .opp-fix {
+    font-size: 10px;
+    color: #94a3b8;
+    margin-top: 7px;
+    padding-top: 7px;
+    border-top: 1px solid #1e293b;
+    line-height: 1.5;
+  }
+  .opp-fix strong { color: #e2e8f0; }
+
+  /* ── PIPELINE (existing) ─────────────────────────── */
+  .pipeline {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  .col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+  }
+  .col-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #475569;
+    text-align: center;
+    margin-bottom: 4px;
+  }
+  .arrow-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    padding-top: 34px;
+    flex-shrink: 0;
+  }
+  .arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    color: #334155;
+  }
+  .arrow-line {
+    width: 2px;
+    height: 60px;
+    background: linear-gradient(to bottom, #1e293b, #334155);
+  }
+  .arrow-head {
+    width: 0; height: 0;
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 8px solid #334155;
+  }
+  .card {
+    border-radius: 12px;
+    border: 1px solid #1e293b;
+    padding: 16px;
+    background: #0f172a;
+    position: relative;
+  }
+  .card-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 12px;
+  }
+  .col-inputs { width: 200px; }
+  .input-card {
+    background: #0f172a;
+    border: 1px solid #1e2d3d;
+    border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .input-card .field-name {
+    font-size: 11px;
+    font-weight: 700;
+    color: #38bdf8;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .input-card .field-name .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: #38bdf8;
+    flex-shrink: 0;
+  }
+  .input-card .values {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .tag {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-weight: 500;
+    background: #1e293b;
+    color: #94a3b8;
+    border: 1px solid #2d3f55;
+  }
+  .tag.highlight {
+    background: #0c2233;
+    color: #38bdf8;
+    border-color: #1d4a6e;
+  }
+  .field-desc {
+    font-size: 10px;
+    color: #475569;
+    margin-top: 5px;
+    line-height: 1.5;
+  }
+  .col-engine { width: 380px; }
+  .engine-card {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .engine-header {
+    background: #131c2e;
+    padding: 10px 16px;
+    border-bottom: 1px solid #1e293b;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .engine-header .badge {
+    font-size: 9px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #1e3a5f;
+    color: #60a5fa;
+    border: 1px solid #2d5282;
+  }
+  .engine-header .title {
+    font-size: 12px;
+    font-weight: 700;
+    color: #e2e8f0;
+  }
+  .engine-header .formula {
+    margin-left: auto;
+    font-size: 10px;
+    color: #64748b;
+    font-family: monospace;
+  }
+  .score-row {
+    display: flex;
+    align-items: center;
+    padding: 9px 16px;
+    border-bottom: 1px solid #111827;
+    gap: 10px;
+    transition: background 0.1s;
+  }
+  .score-row:hover { background: #131c2e; }
+  .score-row:last-child { border-bottom: none; }
+  .score-icon {
+    width: 28px; height: 28px;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .score-body { flex: 1; min-width: 0; }
+  .score-name {
+    font-size: 11px;
+    font-weight: 700;
+    color: #cbd5e1;
+    margin-bottom: 2px;
+  }
+  .score-detail {
+    font-size: 10px;
+    color: #475569;
+    line-height: 1.5;
+  }
+  .score-points {
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .pts-range {
+    font-size: 11px;
+    font-weight: 800;
+    font-family: monospace;
+  }
+  .pts-positive { color: #4ade80; }
+  .pts-negative { color: #f87171; }
+  .pts-neutral  { color: #fbbf24; }
+  .pts-sub {
+    font-size: 9px;
+    color: #475569;
+    margin-top: 1px;
+  }
+  .col-article { width: 240px; }
+  .article-card {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    padding: 11px 14px;
+  }
+  .article-card .art-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: #e2e8f0;
+    margin-bottom: 5px;
+    line-height: 1.4;
+  }
+  .art-meta {
+    font-size: 10px;
+    color: #475569;
+    margin-bottom: 7px;
+  }
+  .art-corpus-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #475569;
+    margin-bottom: 4px;
+  }
+  .art-corpus {
+    font-size: 10px;
+    color: #64748b;
+    background: #111827;
+    border-radius: 6px;
+    padding: 7px 9px;
+    line-height: 1.5;
+    border: 1px solid #1e293b;
+    font-family: monospace;
+  }
+  .art-corpus .hi { color: #fbbf24; }
+  .col-output { width: 210px; }
+  .result-card {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    padding: 11px 14px;
+  }
+  .result-title {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-bottom: 3px;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .result-score-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 5px;
+  }
+  .result-score-num {
+    font-size: 20px;
+    font-weight: 800;
+    font-family: monospace;
+    letter-spacing: -0.03em;
+  }
+  .score-bar-wrap {
+    flex: 1;
+    height: 5px;
+    background: #1e293b;
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .score-bar {
+    height: 100%;
+    border-radius: 99px;
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+  }
+  .breakdown-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 9px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-weight: 600;
+    margin: 2px 2px 0 0;
+  }
+  .bp-positive { background: #14291e; color: #4ade80; border: 1px solid #1a3d26; }
+  .bp-negative { background: #2d1515; color: #f87171; border: 1px solid #4a2020; }
+  .pool-banner {
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 10px;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .pool-icon { font-size: 18px; }
+  .pool-text { font-size: 11px; color: #64748b; }
+  .pool-text strong { color: #94a3b8; }
+  .pool-funnel {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: #475569;
+  }
+  .funnel-num {
+    font-size: 12px;
+    font-weight: 800;
+    font-family: monospace;
+    color: #60a5fa;
+  }
+  .funnel-arrow { color: #334155; }
+  .formula-box {
+    background: #070d1a;
+    border: 1px solid #1e3a5f;
+    border-radius: 10px;
+    padding: 12px 16px;
+  }
+  .formula-box .label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #3b5a80;
+    margin-bottom: 8px;
+  }
+  .formula-line {
+    font-family: monospace;
+    font-size: 12px;
+    color: #60a5fa;
+    line-height: 1.8;
+  }
+  .formula-line .op { color: #64748b; }
+  .formula-line .val { color: #e2e8f0; }
+  .formula-line .comment { color: #334155; font-size: 10px; }
+  .formula-line .clamp { color: #a78bfa; }
+
+  .legend {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    justify-content: center;
+    margin-top: 56px;
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: #475569;
+  }
+  .legend-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+
+  @media (max-width: 900px) {
+    .pipeline { flex-direction: column; align-items: center; }
+    .arrow-col { transform: rotate(90deg); margin: 8px 0; }
+    .onboarding-flow { flex-direction: column; }
+    .ob-arrow { transform: rotate(90deg); padding: 8px 0; }
+    .weight-grid { grid-template-columns: 1fr; }
+    .output-grid { grid-template-columns: 1fr; }
+    .opp-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<h1>Distill AI — Recommender Architecture</h1>
+<p class="subtitle">Onboarding · Scoring · Output · Opportunities</p>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     SECTION 1: ONBOARDING FLOW
+════════════════════════════════════════════════════════════ -->
+<div class="section-label">01 · Onboarding — 3 steps, 6 questions, not all equal</div>
+
+<div class="onboarding-flow">
+
+  <!-- STEP 1 -->
+  <div class="ob-step">
+    <div class="ob-step-header">
+      <div class="ob-step-num">1</div>
+      <div class="ob-step-title">Who are you?</div>
+      <div class="ob-step-sub">3 inputs</div>
+    </div>
+
+    <div class="ob-question">
+      <div class="ob-q-label" style="justify-content: space-between;">
+        <span>Name</span>
+        <span class="ob-q-pts zero">+0 pts</span>
+      </div>
+      <div class="ob-q-sub">Optional. Used only to personalise greetings — no effect on article scoring.</div>
+      <span class="ob-q-impact impact-none">Zero scoring impact</span>
+    </div>
+
+    <div class="ob-question">
+      <div class="ob-q-label" style="justify-content: space-between;">
+        <span>Role</span>
+        <span class="ob-q-pts">+15 max</span>
+      </div>
+      <div class="ob-q-sub">15 options (dropdown). Matched via substring — "engineering", "product", "legal", etc.</div>
+      <span class="ob-q-impact impact-high">High — role signals ±15 pts</span>
+    </div>
+
+    <div class="ob-question">
+      <div class="ob-q-label" style="justify-content: space-between;">
+        <span>Industry</span>
+        <span class="ob-q-pts">+18 max</span>
+      </div>
+      <div class="ob-q-sub">10 options. Selects keyword list from INDUSTRY_KEYWORDS map. Tech gets blanket +6.</div>
+      <span class="ob-q-impact impact-high">High — industry keywords +6–18 pts</span>
+      <div style="margin-top:6px;font-size:9px;color:#475569;">⚠ Fires weakly for non-tech — feeds skew AI/tech</div>
+    </div>
+  </div>
+
+  <div class="ob-arrow">
+    <div class="ob-arrow-line"></div>
+    <div class="ob-arrow-head"></div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="ob-step">
+    <div class="ob-step-header">
+      <div class="ob-step-num">2</div>
+      <div class="ob-step-title">How do you think about AI?</div>
+      <div class="ob-step-sub">2 inputs</div>
+    </div>
+
+    <div class="ob-question">
+      <div class="ob-q-label" style="justify-content: space-between;">
+        <span>AI Comfort Level</span>
+        <span class="ob-q-pts">±15 pts</span>
+      </div>
+      <div class="ob-q-sub">4 options: skeptic / beginner / active / power. Controls how technical content is treated — single biggest lever per-article.</div>
+      <span class="ob-q-impact impact-high">High — ±30 pt swing (power vs skeptic)</span>
+    </div>
+
+    <div class="ob-question">
+      <div class="ob-q-label" style="justify-content: space-between;">
+        <span>Goals <span style="color:#fb923c;font-size:9px;font-weight:800;margin-left:4px;">⚠ BUG</span></span>
+        <span class="ob-q-pts">+24 max</span>
+      </div>
+      <div class="ob-q-sub">UI is multi-select. But only <code style="font-family:monospace;font-size:10px;color:#fb923c;background:#1a0e00;padding:1px 4px;border-radius:3px;">goals[0]</code> is sent to the API (page.tsx:532). Remaining selections are silently ignored.</div>
+      <span class="ob-q-impact impact-bug">Bug — multi-select data thrown away</span>
+      <div style="margin-top:6px;padding:6px 8px;background:#1a0e00;border-radius:6px;border:1px solid #4a2a00;">
+        <div style="font-family:monospace;font-size:9px;color:#64748b;line-height:1.7;">
+          <span style="color:#475569">// page.tsx:532</span><br>
+          goal: profile?.goals<span style="color:#f87171">[0]</span> ?? "stay-informed"
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="ob-arrow">
+    <div class="ob-arrow-line"></div>
+    <div class="ob-arrow-head"></div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="ob-step">
+    <div class="ob-step-header">
+      <div class="ob-step-num">3</div>
+      <div class="ob-step-title">What tools do you use?</div>
+      <div class="ob-step-sub">1 input</div>
+    </div>
+
+    <div class="ob-question">
+      <div class="ob-q-label" style="justify-content: space-between;">
+        <span>AI Tools (multi-select)</span>
+        <span class="ob-q-pts neg">−15 max</span>
+      </div>
+      <div class="ob-q-sub">7 tools + "None yet". Applied as dedup penalty: if user already uses a tool AND article is intro/tutorial content → −15 pts.</div>
+      <span class="ob-q-impact impact-penalty">Penalty only — deduplication signal</span>
+      <div style="margin-top:6px;font-size:9px;color:#475569;">Checks: "how to", "getting started", "what is", "introduction", "tutorial", "learn"</div>
+    </div>
+
+    <div style="padding:11px 14px;background:#0a0f1a;border-top:1px solid #111827;">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#334155;margin-bottom:6px;">Missing signals (no question asked)</div>
+      <div style="font-size:10px;color:#334155;line-height:1.7;">
+        Seniority level (IC vs. VP)<br>
+        Company size (startup vs. enterprise)<br>
+        Content format preference<br>
+        Active decision / problem right now
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<div class="section-gap"></div>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     SECTION 2: SCORE WEIGHT DISTRIBUTION
+════════════════════════════════════════════════════════════ -->
+<div class="section-label">02 · Score weight distribution — max 100, theoretical ceiling ≈ 108</div>
+
+<div class="weight-grid">
+
+  <div class="weight-panel">
+    <div class="weight-panel-title">Positive signals — max contribution per factor</div>
+
+    <div class="weight-row">
+      <div class="weight-label"><strong>Goal match</strong><br><span style="font-size:9px;">Q: Goals (goals[0])</span></div>
+      <div class="weight-bar-wrap"><div class="weight-bar" style="width:100%;background:linear-gradient(90deg,#16a34a,#4ade80);"></div></div>
+      <div class="weight-pts" style="color:#4ade80;">+24 max</div>
+      <div class="weight-source">hits×8, cap 24</div>
+    </div>
+
+    <div class="weight-row">
+      <div class="weight-label"><strong>Industry keywords</strong><br><span style="font-size:9px;">Q: Industry</span></div>
+      <div class="weight-bar-wrap"><div class="weight-bar" style="width:75%;background:linear-gradient(90deg,#0891b2,#22d3ee);"></div></div>
+      <div class="weight-pts" style="color:#22d3ee;">+18 max</div>
+      <div class="weight-source">hits×6, cap 18</div>
+    </div>
+
+    <div class="weight-row">
+      <div class="weight-label"><strong>Role signals</strong><br><span style="font-size:9px;">Q: Role</span></div>
+      <div class="weight-bar-wrap"><div class="weight-bar" style="width:62.5%;background:linear-gradient(90deg,#7c3aed,#a78bfa);"></div></div>
+      <div class="weight-pts" style="color:#a78bfa;">+15 max</div>
+      <div class="weight-source">role match</div>
+    </div>
+
+    <div class="weight-row">
+      <div class="weight-label"><strong>Comfort level</strong><br><span style="font-size:9px;">Q: Comfort</span></div>
+      <div class="weight-bar-wrap"><div class="weight-bar" style="width:62.5%;background:linear-gradient(90deg,#db2777,#f472b6);"></div></div>
+      <div class="weight-pts" style="color:#f472b6;">+15 max</div>
+      <div class="weight-source">power only</div>
+    </div>
+
+    <div class="weight-row">
+      <div class="weight-label"><strong>Recency</strong><br><span style="font-size:9px;">No question</span></div>
+      <div class="weight-bar-wrap"><div class="weight-bar" style="width:41.7%;background:linear-gradient(90deg,#0e7490,#06b6d4);"></div></div>
+      <div class="weight-pts" style="color:#06b6d4;">+10 max</div>
+      <div class="weight-source">48h window</div>
+    </div>
+
+    <div class="weight-row">
+      <div class="weight-label"><strong>Tech blanket</strong><br><span style="font-size:9px;">Industry = Tech</span></div>
+      <div class="weight-bar-wrap"><div class="weight-bar" style="width:25%;background:#1e3a5f;"></div></div>
+      <div class="weight-pts" style="color:#60a5fa;">+6 max</div>
+      <div class="weight-source">always if tech</div>
+    </div>
+
+    <div class="weight-row">
+      <div class="weight-label" style="color:#334155;"><strong>Base</strong><br><span style="font-size:9px;">Always</span></div>
+      <div class="weight-bar-wrap"><div class="weight-bar" style="width:83.3%;background:#1e293b;"></div></div>
+      <div class="weight-pts" style="color:#475569;">+20 flat</div>
+      <div class="weight-source">floor, not earned</div>
+    </div>
+  </div>
+
+  <div class="weight-panel">
+    <div class="weight-panel-title">Penalty signals — max damage per factor</div>
+
+    <div class="weight-row">
+      <div class="weight-label"><strong>Comfort: skeptic</strong><br><span style="font-size:9px;">Q: Comfort</span></div>
+      <div class="weight-bar-wrap"><div class="weight-bar" style="width:100%;background:linear-gradient(90deg,#dc2626,#f87171);"></div></div>
+      <div class="weight-pts" style="color:#f87171;">−15 max</div>
+      <div class="weight-source">technical article</div>
+    </div>
+
+    <div class="weight-row">
+      <div class="weight-label"><strong>AI Tools dedup</strong><br><span style="font-size:9px;">Q: AI Tools</span></div>
+      <div class="weight-bar-wrap"><div class="weight-bar" style="width:100%;background:linear-gradient(90deg,#9a1515,#f87171);"></div></div>
+      <div class="weight-pts" style="color:#f87171;">−15 max</div>
+      <div class="weight-source">intro content</div>
+    </div>
+
+    <div class="weight-row">
+      <div class="weight-label"><strong>Role: legal (tech)</strong><br><span style="font-size:9px;">Q: Role</span></div>
+      <div class="weight-bar-wrap"><div class="weight-bar" style="width:80%;background:linear-gradient(90deg,#7f1d1d,#fca5a5);"></div></div>
+      <div class="weight-pts" style="color:#fca5a5;">−12 max</div>
+      <div class="weight-source">pure technical</div>
+    </div>
+
+    <div class="weight-row">
+      <div class="weight-label"><strong>Role: exec (tech)</strong><br><span style="font-size:9px;">Q: Role</span></div>
+      <div class="weight-bar-wrap"><div class="weight-bar" style="width:66%;background:linear-gradient(90deg,#7f1d1d,#fca5a5);"></div></div>
+      <div class="weight-pts" style="color:#fca5a5;">−10 max</div>
+      <div class="weight-source">pure technical</div>
+    </div>
+
+    <div class="weight-row">
+      <div class="weight-label"><strong>Role: design (tech)</strong><br><span style="font-size:9px;">Q: Role</span></div>
+      <div class="weight-bar-wrap"><div class="weight-bar" style="width:66%;background:linear-gradient(90deg,#7f1d1d,#fca5a5);"></div></div>
+      <div class="weight-pts" style="color:#fca5a5;">−10 max</div>
+      <div class="weight-source">pure technical</div>
+    </div>
+
+    <div class="weight-row">
+      <div class="weight-label"><strong>Comfort: beginner</strong><br><span style="font-size:9px;">Q: Comfort</span></div>
+      <div class="weight-bar-wrap"><div class="weight-bar" style="width:53.3%;background:linear-gradient(90deg,#7f1d1d,#fca5a5);"></div></div>
+      <div class="weight-pts" style="color:#fca5a5;">−8 max</div>
+      <div class="weight-source">technical article</div>
+    </div>
+
+    <div style="margin-top:14px;padding:10px 12px;background:#111827;border-radius:8px;border:1px solid #1e293b;">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#334155;margin-bottom:6px;">Technicality — current implementation</div>
+      <div style="font-family:monospace;font-size:10px;color:#475569;line-height:1.7;">
+        <span style="color:#38bdf8">isTechnical</span> = contains(corpus, TECHNICAL_KEYWORDS)<br>
+        <span style="color:#334155">// → boolean, not a score</span><br>
+        <span style="color:#334155">// 1 keyword = same as 20 keywords</span><br>
+        <span style="color:#fb923c">// opportunity: score 0–3 by keyword count</span>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+
+<div class="section-gap"></div>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     SECTION 3: PIPELINE (article corpus → score → output)
+════════════════════════════════════════════════════════════ -->
+<div class="section-label">03 · Scoring pipeline — scoreArticle() · recommender/score.ts</div>
+
+<!-- Article Pool banner -->
+<div style="max-width:1280px;margin:0 auto 24px;">
+  <div class="pool-banner">
+    <div class="pool-icon">📡</div>
+    <div class="pool-text">
+      <strong>13 RSS feeds</strong> · 20 articles each · sorted by recency
+    </div>
+    <div class="pool-funnel">
+      <span class="funnel-num">260</span>
+      <span class="funnel-arrow">→ cap →</span>
+      <span class="funnel-num">120</span>
+      <span class="funnel-arrow">→ score + sort →</span>
+      <span class="funnel-num" style="color:#a78bfa">top 8</span>
+      <span style="margin-left:6px;color:#475569">returned to user</span>
+    </div>
+  </div>
+</div>
+
+<div class="pipeline">
+
+  <!-- COL 1: USER INPUTS -->
+  <div class="col col-inputs">
+    <div class="col-label">User Profile Inputs</div>
+
+    <div class="input-card">
+      <div class="field-name"><span class="dot"></span>role <span style="color:#475569;font-weight:400;font-size:10px">free text</span></div>
+      <div class="values">
+        <span class="tag highlight">Engineering</span>
+        <span class="tag">Executive</span>
+        <span class="tag">Product</span>
+        <span class="tag">Sales</span>
+        <span class="tag">Legal</span>
+        <span class="tag">Design</span>
+        <span class="tag">Research</span>
+        <span class="tag">Operations</span>
+      </div>
+      <div class="field-desc">Matched via substring — role.includes("engineering")</div>
+    </div>
+
+    <div class="input-card">
+      <div class="field-name"><span class="dot" style="background:#a78bfa"></span>industry <span style="color:#475569;font-weight:400;font-size:10px">enum</span></div>
+      <div class="values">
+        <span class="tag highlight" style="color:#a78bfa;border-color:#3d2d6e;background:#1a1033">Tech/Software</span>
+        <span class="tag">Finance</span>
+        <span class="tag">Healthcare</span>
+        <span class="tag">Media</span>
+        <span class="tag">Education</span>
+        <span class="tag">Retail</span>
+        <span class="tag">Gov't</span>
+        <span class="tag">Mfg</span>
+      </div>
+      <div class="field-desc">Selects keyword list from INDUSTRY_KEYWORDS map</div>
+    </div>
+
+    <div class="input-card">
+      <div class="field-name"><span class="dot" style="background:#f472b6"></span>comfort <span style="color:#475569;font-weight:400;font-size:10px">4-way enum</span></div>
+      <div class="values">
+        <span class="tag">skeptic</span>
+        <span class="tag">beginner</span>
+        <span class="tag highlight" style="color:#f472b6;border-color:#6d2050;background:#1f0f1a">active</span>
+        <span class="tag">power</span>
+      </div>
+      <div class="field-desc">Controls technical content boost/penalty</div>
+    </div>
+
+    <div class="input-card">
+      <div class="field-name"><span class="dot" style="background:#fb923c"></span>goals <span style="color:#4ade80;font-weight:700;font-size:9px">all goals used ✓</span></div>
+      <div class="values">
+        <span class="tag">stay-informed</span>
+        <span class="tag">find-tools</span>
+        <span class="tag highlight" style="color:#fb923c;border-color:#6d3010;background:#1f1008">strategic</span>
+        <span class="tag highlight" style="color:#fb923c;border-color:#6d3010;background:#1f1008">build</span>
+        <span class="tag">curiosity</span>
+      </div>
+      <div class="field-desc" style="color:#4ade80;">Each selected goal scored independently via for...of loop</div>
+    </div>
+
+    <div class="input-card">
+      <div class="field-name"><span class="dot" style="background:#34d399"></span>aiTools <span style="color:#475569;font-weight:400;font-size:10px">multi-select</span></div>
+      <div class="values">
+        <span class="tag">ChatGPT</span>
+        <span class="tag">Claude</span>
+        <span class="tag">Gemini</span>
+        <span class="tag">Copilot</span>
+        <span class="tag highlight" style="color:#34d399;border-color:#1a4d3a;background:#0d2420">Cursor</span>
+        <span class="tag">Perplexity</span>
+        <span class="tag">Midjourney</span>
+      </div>
+      <div class="field-desc">De-dupes "intro" articles for tools already known</div>
+    </div>
+  </div>
+
+  <div class="arrow-col" style="padding-top: 220px;">
+    <div class="arrow">
+      <div class="arrow-line" style="height:80px;"></div>
+      <div class="arrow-head"></div>
+    </div>
+  </div>
+
+  <!-- COL 2: ARTICLE CORPUS -->
+  <div class="col col-article">
+    <div class="col-label">Article Corpus (per article)</div>
+
+    <div class="article-card">
+      <div class="art-title">OpenAI Launches New Agent SDK for Developers</div>
+      <div class="art-meta">openai · Models & Assistants · 14h ago</div>
+      <div class="art-corpus-label">Scoring corpus = title + summary</div>
+      <div class="art-corpus">
+        "openai launches new <span class="hi">agent sdk</span> for <span class="hi">developer</span>s...
+        <span class="hi">open source</span>, <span class="hi">function calling</span>,
+        <span class="hi">api</span> access, <span class="hi">agentic</span>
+        workflows now <span class="hi">available</span>..."
+      </div>
+    </div>
+
+    <div style="padding:10px 14px;background:#0a0f1a;border:1px solid #1a2540;border-radius:8px;">
+      <div class="art-corpus-label">Matching helpers</div>
+      <div style="font-size:10px;color:#475569;line-height:1.8;font-family:monospace;">
+        <span style="color:#38bdf8">contains</span>(corpus, terms) → boolean<br>
+        <span style="color:#38bdf8">countMatches</span>(corpus, terms) → number<br>
+        <span style="color:#64748b">// both lowercase</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="art-corpus-label" style="margin-bottom:6px;">Article fields used</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;">
+        <span class="tag highlight">title</span>
+        <span class="tag highlight">summary</span>
+        <span class="tag">published</span>
+        <span class="tag" style="color:#475569">id, link, source, topic → passthrough</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="arrow-col" style="padding-top: 100px;">
+    <div class="arrow">
+      <div class="arrow-line" style="height:80px;"></div>
+      <div class="arrow-head"></div>
+    </div>
+  </div>
+
+  <!-- COL 3: SCORE ENGINE -->
+  <div class="col col-engine">
+    <div class="col-label">scoreArticle() — Score Factors</div>
+
+    <div class="engine-card">
+
+      <div class="engine-header">
+        <span class="badge">Always</span>
+        <span class="title">Base Score</span>
+        <span class="formula">+20 flat</span>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#1a2535;">🏁</div>
+        <div class="score-body">
+          <div class="score-name">Base</div>
+          <div class="score-detail">Every article starts here — nothing scores zero for just existing</div>
+        </div>
+        <div class="score-points">
+          <div class="pts-range pts-neutral">+20</div>
+          <div class="pts-sub">always</div>
+        </div>
+      </div>
+
+      <div class="engine-header">
+        <span class="badge" style="background:#1a2e1a;color:#4ade80;border-color:#2a4a2a;">Goal match</span>
+        <span class="title">Goal Signal</span>
+        <span class="formula">for (goal of profile.goals) → each scored independently</span>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#1a2020;">🎯</div>
+        <div class="score-body">
+          <div class="score-name">find-tools</div>
+          <div class="score-detail">TOOL_LAUNCH_KEYWORDS: launch, releases, new tool, plugin, integration…</div>
+        </div>
+        <div class="score-points">
+          <div class="pts-range pts-positive">+8–24</div>
+          <div class="pts-sub">hits × 8, cap 24</div>
+        </div>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#1a1e2a;">📊</div>
+        <div class="score-body">
+          <div class="score-name">strategic-decisions</div>
+          <div class="score-detail">STRATEGIC_KEYWORDS: funding, acquisition, policy, enterprise, ceo…</div>
+        </div>
+        <div class="score-points">
+          <div class="pts-range pts-positive">+8–24</div>
+          <div class="pts-sub">hits × 8, cap 24</div>
+        </div>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#1a1a2a;">🔧</div>
+        <div class="score-body">
+          <div class="score-name">build</div>
+          <div class="score-detail">BUILD_KEYWORDS: api, sdk, github, agent, agentic, deploy, fine-tune…</div>
+        </div>
+        <div class="score-points">
+          <div class="pts-range pts-positive">+8–24</div>
+          <div class="pts-sub">hits × 8, cap 24</div>
+        </div>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#1e1a14;">📰</div>
+        <div class="score-body">
+          <div class="score-name">stay-informed / curiosity</div>
+          <div class="score-detail">Flat news signal: "announced", "launches", "released", "unveiled"</div>
+        </div>
+        <div class="score-points">
+          <div class="pts-range pts-positive">+8</div>
+          <div class="pts-sub">if signal found</div>
+        </div>
+      </div>
+
+      <div class="engine-header">
+        <span class="badge" style="background:#1a1a3a;color:#a78bfa;border-color:#2d2d5a;">Comfort</span>
+        <span class="title">Comfort Signal</span>
+        <span class="formula">profile.comfort + TECHNICAL_KEYWORDS</span>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#201a2a;">🚫</div>
+        <div class="score-body">
+          <div class="score-name">skeptic</div>
+          <div class="score-detail">+12 if strategic; −15 if technical (api, model weights, benchmark…)</div>
+        </div>
+        <div class="score-points">
+          <div class="pts-range pts-positive">+12</div>
+          <div class="pts-range pts-negative">−15</div>
+        </div>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#201520;">🌱</div>
+        <div class="score-body">
+          <div class="score-name">beginner</div>
+          <div class="score-detail">−8 if technical keywords found</div>
+        </div>
+        <div class="score-points">
+          <div class="pts-range pts-negative">−8</div>
+          <div class="pts-sub">tech penalty</div>
+        </div>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#181e1a;">⚡</div>
+        <div class="score-body">
+          <div class="score-name">active</div>
+          <div class="score-detail">+10 for comparison content: "vs", "versus", "alternative", "better than"</div>
+        </div>
+        <div class="score-points">
+          <div class="pts-range pts-positive">+10</div>
+          <div class="pts-sub">comparison</div>
+        </div>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#15201a;">💪</div>
+        <div class="score-body">
+          <div class="score-name">power</div>
+          <div class="score-detail">+15 for any technical content</div>
+        </div>
+        <div class="score-points">
+          <div class="pts-range pts-positive">+15</div>
+          <div class="pts-sub">tech boost</div>
+        </div>
+      </div>
+
+      <div class="engine-header">
+        <span class="badge" style="background:#2a1a1a;color:#fb923c;border-color:#5a2a1a;">Role</span>
+        <span class="title">Role Signal</span>
+        <span class="formula">profile.role.includes(...)</span>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#1e1e14;">👔</div>
+        <div class="score-body">
+          <div class="score-name">executive / c-suite</div>
+          <div class="score-detail">+12 strategic; −10 if purely technical (no strategic overlap)</div>
+        </div>
+        <div class="score-points">
+          <div class="pts-range pts-positive">+12</div>
+          <div class="pts-range pts-negative">−10</div>
+        </div>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#141e22;">💻</div>
+        <div class="score-body">
+          <div class="score-name">engineering / technical</div>
+          <div class="score-detail">+12 technical; +8 build keywords (stackable)</div>
+        </div>
+        <div class="score-points">
+          <div class="pts-range pts-positive">+12 / +8</div>
+          <div class="pts-sub">stackable</div>
+        </div>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#1a1a20;">📦</div>
+        <div class="score-body">
+          <div class="score-name">product</div>
+          <div class="score-detail">+12 if: TOOL_LAUNCH_KEYWORDS, roadmap, feature, capability, ux</div>
+        </div>
+        <div class="score-points"><div class="pts-range pts-positive">+12</div></div>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#1e1a14;">💼</div>
+        <div class="score-body">
+          <div class="score-name">sales / marketing</div>
+          <div class="score-detail">+12 if: enterprise, pricing, revenue, customer, campaign, brand</div>
+        </div>
+        <div class="score-points"><div class="pts-range pts-positive">+12</div></div>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#141a1a;">🔬</div>
+        <div class="score-body">
+          <div class="score-name">research / analyst</div>
+          <div class="score-detail">+12 if: research, paper, study, benchmark, arxiv</div>
+        </div>
+        <div class="score-points"><div class="pts-range pts-positive">+12</div></div>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#1a1a14;">⚙️</div>
+        <div class="score-body">
+          <div class="score-name">operations / finance</div>
+          <div class="score-detail">+12 if: automation, workflow, efficiency, cost, productivity</div>
+        </div>
+        <div class="score-points"><div class="pts-range pts-positive">+12</div></div>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#1a1422;">🎨</div>
+        <div class="score-body">
+          <div class="score-name">design</div>
+          <div class="score-detail">+15 design keywords; −10 if purely technical</div>
+        </div>
+        <div class="score-points">
+          <div class="pts-range pts-positive">+15</div>
+          <div class="pts-range pts-negative">−10</div>
+        </div>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#1a1414;">⚖️</div>
+        <div class="score-body">
+          <div class="score-name">legal / compliance</div>
+          <div class="score-detail">+15 LEGAL_KEYWORDS; −12 if purely technical</div>
+        </div>
+        <div class="score-points">
+          <div class="pts-range pts-positive">+15</div>
+          <div class="pts-range pts-negative">−12</div>
+        </div>
+      </div>
+
+      <div class="engine-header">
+        <span class="badge" style="background:#2a1a2a;color:#c084fc;border-color:#5a2a5a;">Industry</span>
+        <span class="title">Industry Signal</span>
+        <span class="formula">INDUSTRY_KEYWORDS[profile.industry]</span>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#1a1a20;">🏭</div>
+        <div class="score-body">
+          <div class="score-name">Industry keyword match</div>
+          <div class="score-detail">Counts how many industry terms appear in corpus; caps at 3 hits</div>
+        </div>
+        <div class="score-points">
+          <div class="pts-range pts-positive">+6–18</div>
+          <div class="pts-sub">hits × 6, cap 18</div>
+        </div>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#141a14;">💡</div>
+        <div class="score-body">
+          <div class="score-name">Technology / Software blanket boost</div>
+          <div class="score-detail">AI news is always relevant for tech industry — flat bonus</div>
+        </div>
+        <div class="score-points">
+          <div class="pts-range pts-positive">+6</div>
+          <div class="pts-sub">always, if tech</div>
+        </div>
+      </div>
+
+      <div class="engine-header">
+        <span class="badge" style="background:#14201a;color:#34d399;border-color:#1a4a2a;">Dedup</span>
+        <span class="title">AI Tools De-dup</span>
+        <span class="formula">profile.aiTools × TOOL_KEYWORDS</span>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#1a2018;">🔁</div>
+        <div class="score-body">
+          <div class="score-name">Already-known tool intro penalty</div>
+          <div class="score-detail">If article is about a tool user already uses AND is intro/tutorial content ("how to", "getting started", "what is"…)</div>
+        </div>
+        <div class="score-points">
+          <div class="pts-range pts-negative">−15</div>
+          <div class="pts-sub">per tool match</div>
+        </div>
+      </div>
+
+      <div class="engine-header">
+        <span class="badge" style="background:#14201e;color:#2dd4bf;border-color:#1a4a44;">Recency</span>
+        <span class="title">Recency Bonus</span>
+        <span class="formula">article.published age</span>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#14201e;">⏰</div>
+        <div class="score-body">
+          <div class="score-name">Last 48 hours</div>
+          <div class="score-detail">Published within 2 days → strong freshness bonus</div>
+        </div>
+        <div class="score-points"><div class="pts-range pts-positive">+10</div></div>
+      </div>
+      <div class="score-row">
+        <div class="score-icon" style="background:#141c1a;">🕐</div>
+        <div class="score-body">
+          <div class="score-name">Last 7 days</div>
+          <div class="score-detail">Published within a week → mild freshness bonus</div>
+        </div>
+        <div class="score-points"><div class="pts-range pts-positive">+5</div></div>
+      </div>
+
+    </div>
+
+    <div class="formula-box" style="margin-top:12px;">
+      <div class="label">Final score formula</div>
+      <div class="formula-line">
+        raw <span class="op">=</span> Σ factors<br>
+        score <span class="op">=</span> <span class="clamp">clamp</span>(<span class="val">raw</span>, <span class="val">0</span>, <span class="val">100</span>)<br>
+        <span class="comment">// theoretical max ≈ 20+24+15+15+18+6+10 = 108 → clamped to 100</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="arrow-col" style="padding-top: 320px;">
+    <div class="arrow">
+      <div class="arrow-line" style="height:80px;"></div>
+      <div class="arrow-head"></div>
+    </div>
+  </div>
+
+  <!-- COL 4: OUTPUT -->
+  <div class="col col-output">
+    <div class="col-label">Ranked Output (top 8)</div>
+
+    <div class="result-card">
+      <div class="result-title">#1 · OpenAI Agent SDK Launches</div>
+      <div class="result-score-row">
+        <div class="result-score-num" style="color:#4ade80;">87</div>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:87%;"></div></div>
+      </div>
+      <div>
+        <span class="breakdown-pill bp-positive">base +20</span>
+        <span class="breakdown-pill bp-positive">goal:build +24</span>
+        <span class="breakdown-pill bp-positive">role:eng +20</span>
+        <span class="breakdown-pill bp-positive">recency +10</span>
+        <span class="breakdown-pill bp-positive">industry:tech +6</span>
+      </div>
+    </div>
+
+    <div class="result-card" style="margin-top:8px;">
+      <div class="result-title">#2 · Anthropic Raises $2.5B Series D</div>
+      <div class="result-score-row">
+        <div class="result-score-num" style="color:#60a5fa;">71</div>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:71%;background:linear-gradient(90deg,#3b82f6,#6366f1);"></div></div>
+      </div>
+      <div>
+        <span class="breakdown-pill bp-positive">base +20</span>
+        <span class="breakdown-pill bp-positive">goal:strategic +16</span>
+        <span class="breakdown-pill bp-positive">role:eng +12</span>
+        <span class="breakdown-pill bp-positive">recency +10</span>
+        <span class="breakdown-pill bp-positive">industry:tech +6</span>
+      </div>
+    </div>
+
+    <div class="result-card" style="margin-top:8px;">
+      <div class="result-title">#3 · Fine-tuning Llama 3 Guide</div>
+      <div class="result-score-row">
+        <div class="result-score-num" style="color:#a78bfa;">54</div>
+        <div class="score-bar-wrap"><div class="score-bar" style="width:54%;background:linear-gradient(90deg,#7c3aed,#a78bfa);"></div></div>
+      </div>
+      <div>
+        <span class="breakdown-pill bp-positive">base +20</span>
+        <span class="breakdown-pill bp-positive">role:eng +12</span>
+        <span class="breakdown-pill bp-positive">goal:build +8</span>
+        <span class="breakdown-pill bp-positive">industry:tech +6</span>
+        <span class="breakdown-pill bp-positive">recency +5</span>
+        <span class="breakdown-pill bp-negative">aiTools:dedup −15</span>
+      </div>
+    </div>
+
+    <div style="padding:10px 14px;background:#0a0f1a;border:1px solid #1a2540;border-radius:8px;margin-top:8px;">
+      <div class="art-corpus-label">Articles #4 – #8</div>
+      <div style="color:#334155;font-size:11px;margin-top:4px;">sorted desc by score,<br>returned with scoreBreakdown[]</div>
+    </div>
+
+    <div style="padding:12px 14px;background:#070d1a;border:1px solid #1e3a5f;border-radius:8px;margin-top:10px;">
+      <div class="art-corpus-label">ScoredArticle shape</div>
+      <div style="font-family:monospace;font-size:10px;color:#475569;line-height:1.9;margin-top:6px;">
+        <span style="color:#38bdf8">...Article</span><br>
+        score: <span style="color:#4ade80">number</span> <span style="color:#334155">// 0–100</span><br>
+        scoreBreakdown: <span style="color:#a78bfa">ScoreFactor</span>[]<br>
+        &nbsp;&nbsp;factor: <span style="color:#4ade80">string</span><br>
+        &nbsp;&nbsp;points: <span style="color:#4ade80">number</span>
+      </div>
+    </div>
+
+    <div style="padding:10px 14px;background:#0f172a;border:1px solid #1e293b;border-radius:8px;margin-top:10px;">
+      <div class="art-corpus-label" style="margin-bottom:5px;">Downstream</div>
+      <div style="font-size:10px;color:#475569;line-height:1.7;">
+        → <span style="color:#60a5fa">Groq Llama 3.1 8B</span><br>
+        &nbsp;&nbsp;all 8 in 1 prompt<br>
+        &nbsp;&nbsp;returns "why it matters"<br>
+        → <span style="color:#60a5fa">ElevenLabs TTS</span> (optional)<br>
+        &nbsp;&nbsp;audio overview
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+
+<div class="section-gap"></div>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     SECTION 4: ARTICLE OUTPUT ANATOMY
+════════════════════════════════════════════════════════════ -->
+<div class="section-label">04 · Article output anatomy — what the user actually sees per article</div>
+
+<div class="output-grid">
+
+  <!-- comfortSummary -->
+  <div class="output-panel">
+    <div class="output-panel-header">
+      <span class="badge" style="background:#1a1a3a;color:#a78bfa;border:1px solid #2d2d5a;">comfortSummary</span>
+      <span style="font-size:11px;font-weight:600;color:#e2e8f0;margin-left:4px;">The article body</span>
+    </div>
+    <div class="output-panel-body">
+
+      <div class="output-row">
+        <div class="output-row-label">Source</div>
+        <div class="output-row-code">
+          <span class="hl-dim">// route.ts:221</span><br>
+          buildComfortSummary({<br>
+          &nbsp;&nbsp;comfort,<br>
+          &nbsp;&nbsp;base: article.<span class="hl-blue">summary</span> || article.<span class="hl-blue">title</span><br>
+          })
+        </div>
+      </div>
+
+      <div class="output-row">
+        <div class="output-row-label">What it does</div>
+        <div class="output-row-value">Takes raw RSS snippet verbatim, appends ONE comfort-tuned sentence.</div>
+      </div>
+
+      <div class="output-row">
+        <div class="output-row-label">Comfort suffixes</div>
+        <div class="output-row-code">
+          <span class="hl-dim">skeptic:</span> "Think of this less as hype..."<br>
+          <span class="hl-dim">beginner:</span> "If any jargon shows up..."<br>
+          <span class="hl-dim">active:</span> "The question for you is..."<br>
+          <span class="hl-dim">power:</span> "Read this like a changelog..."
+        </div>
+      </div>
+
+      <div class="output-row">
+        <div class="output-row-label">Problem</div>
+        <div class="output-row-value" style="color:#f87171;">Length is unbounded — RSS feeds vary from 3 words to 3 paragraphs. No truncation applied.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- whyItMatters -->
+  <div class="output-panel">
+    <div class="output-panel-header">
+      <span class="badge" style="background:#14291e;color:#4ade80;border:1px solid #1a3d26;">whyItMatters</span>
+      <span style="font-size:11px;font-weight:600;color:#e2e8f0;margin-left:4px;">The LLM sentence</span>
+    </div>
+    <div class="output-panel-body">
+
+      <div class="output-row">
+        <div class="output-row-label">Source</div>
+        <div class="output-row-code">
+          Groq Llama 3.1 8B<br>
+          <span class="hl-dim">model: llama-3.1-8b-instant</span><br>
+          <span class="hl-dim">max_tokens: 1024</span><br>
+          <span class="hl-dim">all 8 articles in 1 prompt</span>
+        </div>
+      </div>
+
+      <div class="output-row">
+        <div class="output-row-label">Prompt constraint</div>
+        <div class="output-row-code">
+          "write exactly <span class="hl-green">ONE sentence</span><br>
+          (<span class="hl-orange">under 22 words</span>)..."
+        </div>
+      </div>
+
+      <div class="output-row">
+        <div class="output-row-label">Context sent</div>
+        <div class="output-row-code">
+          role + industry<br>
+          + goal + comfort level<br>
+          + title + summary[:160]
+        </div>
+      </div>
+
+      <div class="output-row">
+        <div class="output-row-label">Fallback (Groq fails)</div>
+        <div class="output-row-code">
+          Rule-based by role.<br>
+          <span class="hl-dim">_debug.whySource = "fallback"</span>
+        </div>
+      </div>
+
+      <div class="output-row">
+        <div class="output-row-label">Quality</div>
+        <div class="output-row-value" style="color:#4ade80;">Tightest, highest signal text the user sees. Role + industry personalized. 22-word hard cap.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- tryThis -->
+  <div class="output-panel">
+    <div class="output-panel-header">
+      <span class="badge" style="background:#2d1515;color:#f87171;border:1px solid #4a2020;">tryThis</span>
+      <span style="font-size:11px;font-weight:600;color:#e2e8f0;margin-left:4px;">The action prompt</span>
+    </div>
+    <div class="output-panel-body">
+
+      <div class="output-row">
+        <div class="output-row-label">Type definition</div>
+        <div class="output-row-code">
+          <span class="hl-dim">// page.tsx:35</span><br>
+          tryThis?: <span class="hl-purple">string</span>
+        </div>
+      </div>
+
+      <div class="output-row">
+        <div class="output-row-label">API response</div>
+        <div class="output-row-code">
+          <span class="hl-dim">// route.ts:213–223</span><br>
+          items = ranked.map(a => ({<br>
+          &nbsp;&nbsp;...<br>
+          &nbsp;&nbsp;comfortSummary,<br>
+          &nbsp;&nbsp;whyItMatters<br>
+          &nbsp;&nbsp;<span class="hl-red">// tryThis not included</span><br>
+          }))
+        </div>
+      </div>
+
+      <div class="output-row">
+        <div class="output-row-label">Status</div>
+        <div class="output-row-value" style="color:#f87171;">Field exists in type and static examples but is never populated from API. Dead field.</div>
+      </div>
+
+      <div class="output-row">
+        <div class="output-row-label">Opportunity</div>
+        <div class="output-row-value" style="color:#fb923c;">Add to Groq prompt — return <code style="font-size:10px;background:#0a0a0a;padding:1px 4px;border-radius:3px;">whyItMatters</code> + <code style="font-size:10px;background:#0a0a0a;padding:1px 4px;border-radius:3px;">tryThis</code> as JSON object per article.</div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+
+<div class="section-gap"></div>
+
+
+<!-- ════════════════════════════════════════════════════════════
+     SECTION 5: OPPORTUNITIES
+════════════════════════════════════════════════════════════ -->
+<div class="section-label">05 · Areas of opportunity — prioritized</div>
+
+<div class="opp-grid">
+
+  <div class="opp-card low" style="opacity:0.6;">
+    <div class="opp-severity">Fixed ✓</div>
+    <div class="opp-title">goals[0] only — multi-select data thrown away</div>
+    <div class="opp-body">Was: API received only the first goal. All other selections were silently ignored.</div>
+    <code class="opp-code">// Fixed: for (const goal of profile.goals)
+// Each goal now scored independently in score.ts</code>
+    <div class="opp-fix"><strong>Resolved:</strong> page.tsx sends <code>goals=build,find-tools</code>. route.ts parses to <code>Goal[]</code>. score.ts loops over all goals — each keyword group contributes independently. stay-informed/curiosity share a single +8 applied once via .some().</div>
+  </div>
+
+  <div class="opp-card high">
+    <div class="opp-severity">High · Waste</div>
+    <div class="opp-title">Name question burns onboarding time for zero gain</div>
+    <div class="opp-body">Step 1 asks for a name. It is only used to personalise the greeting string. No effect on ranking, scoring, or personalization of summaries.</div>
+    <code class="opp-code">// generateDistillReply — name unused
+// whyItMatters prompt — name unused
+// scoreArticle() — name unused</code>
+    <div class="opp-fix"><strong>Fix:</strong> Remove from onboarding. Ask post-signup in a profile settings page, or drop entirely. Use the freed space to ask something that scores (seniority, company size).</div>
+  </div>
+
+  <div class="opp-card high">
+    <div class="opp-severity">High · Quality</div>
+    <div class="opp-title">comfortSummary = raw RSS with an appended sentence</div>
+    <div class="opp-body">The article body shown to users is an unprocessed RSS snippet that can be 3 words or 500 words. Only one comfort-tuned sentence is appended — the core isn't personalized at all.</div>
+    <code class="opp-code">// route.ts:142 — base = article.summary verbatim
+// no truncation, no cleaning, no rewrite</code>
+    <div class="opp-fix"><strong>Fix:</strong> Truncate base to 120–150 chars before appending. Or include comfortSummary in the Groq prompt as a rewrite pass — costs ~2 extra tokens per article.</div>
+  </div>
+
+  <div class="opp-card high">
+    <div class="opp-severity">High · Coverage</div>
+    <div class="opp-title">Industry scoring fires weakly for non-tech verticals</div>
+    <div class="opp-body">All 13 RSS feeds are AI/tech-focused. Healthcare, finance, legal, retail users get keyword matches only when AI news happens to mention their sector. The tech blanket +6 bonus has no equivalent for others.</div>
+    <code class="opp-code">// CLAUDE.md: "Industry-specific scoring fires
+// weakly when feeds don't contain sector keywords"</code>
+    <div class="opp-fix"><strong>Fix:</strong> Add 1–2 sector-specific feeds per vertical (e.g. STAT News for healthcare, Financial Times AI for finance). FEEDS array is the only change needed.</div>
+  </div>
+
+  <div class="opp-card medium">
+    <div class="opp-severity">Medium · Signal</div>
+    <div class="opp-title">Technicality is binary — one keyword = same as twenty</div>
+    <div class="opp-body">isTechnical is a boolean. An article with one technical term receives identical treatment as a deeply technical research paper. This creates false negatives for power users and false positives for skeptics.</div>
+    <code class="opp-code">// score.ts:62 — boolean, not a score
+const isTechnical = contains(corpus, TECHNICAL_KEYWORDS)
+// opportunity: countMatches → 0 / 1 / 2+ tiers</code>
+    <div class="opp-fix"><strong>Fix:</strong> Replace with countMatches — score 0 (none), 1 (light), 2+ (deep). Apply graded bonuses/penalties. Minimal code change, better signal quality.</div>
+  </div>
+
+  <div class="opp-card medium">
+    <div class="opp-severity">Medium · Dead field</div>
+    <div class="opp-title">tryThis field defined but never populated</div>
+    <div class="opp-body">BriefingItem type includes tryThis?: string and it appears in static examples with high quality copy. But route.ts never returns it — the field is always undefined in live briefings.</div>
+    <code class="opp-code">// route.ts:213–223 — tryThis absent from .map()
+// page.tsx:35 — tryThis?: string (typed, never set)</code>
+    <div class="opp-fix"><strong>Fix:</strong> Extend Groq prompt to return <code style="font-size:10px;background:#0a0a0a;padding:1px 4px;border-radius:3px;">{"why": "...", "try": "..."}</code> per article. One structural change to the prompt — no new API call.</div>
+  </div>
+
+  <div class="opp-card low">
+    <div class="opp-severity">Low · Signal</div>
+    <div class="opp-title">No seniority or company size signal</div>
+    <div class="opp-body">An IC engineer and a VP of Engineering get identical role scoring. A 5-person startup founder and a Fortune 500 exec get the same treatment. These are high-signal inputs that could sharpen both content ranking and the whyItMatters prompt.</div>
+    <code class="opp-code">// No seniority or company size in UserProfile
+// recommender/types.ts — role: string only</code>
+    <div class="opp-fix"><strong>Fix:</strong> Add optional seniority (individual / manager / director / exec) and optionally org size. Use in both scoring and whyItMatters prompt. Could replace the name question slot in onboarding.</div>
+  </div>
+
+  <div class="opp-card low">
+    <div class="opp-severity">Low · UX</div>
+    <div class="opp-title">Goals UI misleads — multi-select implies multi-use</div>
+    <div class="opp-body">Multi-select implies all selected goals matter. Users may select 3 goals assuming they all influence results. Currently only goals[0] matters, which means the selection order at click time determines the outcome.</div>
+    <div class="opp-fix"><strong>Fix (minimal):</strong> Change to radio / single-select to match current model behavior. <strong>Fix (better):</strong> Implement multi-goal scoring (see critical bug above) so multi-select is actually honoured.</div>
+  </div>
+
+  <div class="opp-card low">
+    <div class="opp-severity">Low · Insight</div>
+    <div class="opp-title">Add "what are you trying to decide right now?"</div>
+    <div class="opp-body">A one-line free text input at onboarding (or in chat) describing an active problem or decision would dramatically sharpen whyItMatters personalization. It's the highest-signal single input possible — but requires passing it into the Groq prompt.</div>
+    <div class="opp-fix"><strong>Fix:</strong> Add optional "active context" field to UserProfile. Include in whyItMatters prompt as "user is currently trying to: [context]". No scoring change needed — LLM personalization only.</div>
+  </div>
+
+</div>
+
+
+<!-- Legend -->
+<div class="legend">
+  <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> Critical / Bug</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> High impact</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div> Medium impact</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div> Low / Additive</div>
+  <div class="legend-item" style="margin-left:20px;"><div class="legend-dot" style="background:#4ade80"></div> Positive score factor</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#f87171"></div> Penalty / negative</div>
+  <div class="legend-item"><div class="legend-dot" style="background:#fbbf24"></div> Flat / neutral</div>
+  <div class="legend-item" style="margin-left:20px;color:#334155;">scoreArticle() · recommender/score.ts</div>
+</div>
+
+</body>
+</html>
