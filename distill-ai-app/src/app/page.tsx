@@ -40,13 +40,6 @@ interface BriefingItem {
   relevanceScore?: number;
 }
 
-interface ChatMessage {
-  id: number;
-  sender: "user" | "distill";
-  text: string;
-  relatedItemId?: string;
-}
-
 type ToolCategory =
   | "Writing"
   | "Images"
@@ -70,6 +63,8 @@ interface Tool {
   link: string;
   rating: number;
 }
+
+const VISIBLE_BRIEFING_LIMIT = 5;
 
 // Role = job function (what you do). Industry = sector (where you work). No overlap.
 const ROLE_OPTIONS: { value: string; label: string; subtitle: string }[] = [
@@ -332,45 +327,6 @@ function formatDate(value?: string | null): string | null {
   });
 }
 
-function generateDistillReply(
-  userText: string,
-  profile: UserProfile | null,
-  relatedItem?: BriefingItem,
-): string {
-  const intro = profile
-    ? `For you as a ${getRoleLabel(profile.role) || "professional"} in ${
-        getIndustryLabel(profile.industry) || "your industry"
-      }, `
-    : "";
-
-  if (relatedItem) {
-    return (
-      intro +
-      "here’s how to think about this update:\n\n" +
-      relatedItem.comfortSummary +
-      "\n\nIf you want to make this real, start with one small experiment this week instead of trying to redesign everything at once."
-    );
-  }
-
-  if (userText.toLowerCase().includes("where should i start")) {
-    return (
-      intro +
-      "pick one meaningful but low‑stakes task — like drafting an internal email or summarising a report — and run it through an AI tool. Treat it as a test drive, not a commitment."
-    );
-  }
-
-  if (userText.toLowerCase().includes("explain") && profile?.depth === "practical") {
-    return (
-      "Let’s keep it simple: think of AI as a very fast, very eager assistant. It’s great at first drafts and ideas, but you stay in charge of the final decision."
-    );
-  }
-
-  return (
-    intro +
-    "a good rule of thumb is: start small, keep a human in the loop for important decisions, and pay attention to where AI actually saves you time instead of just feeling impressive."
-  );
-}
-
 function scoreToolForUser(
   tool: Tool,
   category: ToolCategory | null,
@@ -439,6 +395,14 @@ function chunkTextForAudio(text: string, maxChunkChars = 500): string[] {
   return chunks;
 }
 
+function formatTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const s = Math.floor(seconds);
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${m}:${rem.toString().padStart(2, "0")}`;
+}
+
 export default function Home() {
   const [onboardingStep, setOnboardingStep] = useState(0);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -455,13 +419,7 @@ export default function Home() {
     topicsBoosted: [],
   });
 
-  const [activeSection, setActiveSection] = useState<
-    "briefing" | "chat" | "tools"
-  >("briefing");
-
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [chatInput, setChatInput] = useState("");
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [activeSection, setActiveSection] = useState<"briefing" | "tools">("briefing");
 
   const [quizStep, setQuizStep] = useState(0);
   const [quizCategory, setQuizCategory] = useState<ToolCategory | null>(null);
@@ -471,14 +429,19 @@ export default function Home() {
   const [quizRequirements, setQuizRequirements] = useState<string[]>([]);
   const [showQuizResults, setShowQuizResults] = useState(false);
   const [briefingItems, setBriefingItems] = useState<BriefingItem[]>([]);
+  const [activeRecommendationSessionId, setActiveRecommendationSessionId] = useState<string | null>(null);
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [briefingError, setBriefingError] = useState<string | null>(null);
   const [podcastLoading, setPodcastLoading] = useState(false);
   const [podcastPlaying, setPodcastPlaying] = useState(false);
   const [podcastReady, setPodcastReady] = useState(false);
   const [podcastError, setPodcastError] = useState<string | null>(null);
+  const [podcastDuration, setPodcastDuration] = useState(0);
+  const [podcastCurrentTime, setPodcastCurrentTime] = useState(0);
   const podcastAudioRef = useRef<HTMLAudioElement | null>(null);
   const podcastUrlRef = useRef<string | null>(null);
+  const briefingFetchSeq = useRef(0);
+  const loadBriefingRef = useRef<(excludeIds: string[]) => Promise<void>>(() => Promise.resolve());
 
   useEffect(() => {
     const controller = new AbortController();
@@ -511,30 +474,36 @@ export default function Home() {
 
   useEffect(() => {
     if (!profile) return;
-    const controller = new AbortController();
 
-    async function load() {
+    loadBriefingRef.current = async (excludeIds: string[]) => {
+      const seq = ++briefingFetchSeq.current;
       setBriefingLoading(true);
       setBriefingError(null);
       try {
         const params = new URLSearchParams({
-          role: profile?.role ?? "",
-          industry: profile?.industry ?? "",
-          depth: profile?.depth ?? "practical",
-          goals: (profile?.goals ?? ["stay-informed"]).join(","),
-          seniority: profile?.seniority ?? "mid",
-          negativeSignals: (profile?.negativeSignals ?? []).join(","),
-          aiTools: (profile?.aiTools ?? []).join(","),
+          role: profile.role ?? "",
+          industry: profile.industry ?? "",
+          depth: profile.depth ?? "practical",
+          goals: (profile.goals ?? ["stay-informed"]).join(","),
+          seniority: profile.seniority ?? "mid",
+          negativeSignals: (profile.negativeSignals ?? []).join(","),
+          aiTools: (profile.aiTools ?? []).join(","),
           _t: Date.now().toString(),
-        }).toString();
-        const res = await fetch(`/api/briefing?${params}`, {
-          signal: controller.signal,
+        });
+        for (const id of excludeIds) {
+          if (id) params.append("exclude", id);
+        }
+        const res = await fetch(`/api/briefing?${params.toString()}`, {
           cache: "no-store",
         });
         if (!res.ok) {
           throw new Error("Failed to load briefing");
         }
         const data = await res.json();
+        if (briefingFetchSeq.current !== seq) return;
+        setActiveRecommendationSessionId(
+          typeof data.sessionId === "string" ? data.sessionId : null,
+        );
         const rawItems = Array.isArray(data.items) ? data.items : [];
         const items: BriefingItem[] = rawItems.map((item: Record<string, unknown>) => ({
           id: String(item?.id ?? ""),
@@ -553,19 +522,41 @@ export default function Home() {
           setBriefingItems(items);
         }
       } catch {
+        if (briefingFetchSeq.current !== seq) return;
         setBriefingError(
           "Distill couldn’t reach its sources right now. Here’s a sample briefing instead.",
         );
         setBriefingItems(STATIC_BRIEFING_EXAMPLES);
+        setActiveRecommendationSessionId(null);
       } finally {
-        setBriefingLoading(false);
+        if (briefingFetchSeq.current === seq) {
+          setBriefingLoading(false);
+        }
       }
-    }
+    };
 
-    void load();
-
-    return () => controller.abort();
+    void loadBriefingRef.current([]);
   }, [profile]);
+
+  function handleRefreshBriefingFeed() {
+    const ids = personalisedBriefing.map((i) => i.id).filter(Boolean);
+    void loadBriefingRef.current(ids);
+    setPodcastReady(false);
+    setPodcastPlaying(false);
+    setPodcastCurrentTime(0);
+    setPodcastDuration(0);
+    setPodcastError(null);
+    const el = podcastAudioRef.current;
+    if (el) {
+      el.pause();
+      el.removeAttribute("src");
+      el.load();
+    }
+    if (podcastUrlRef.current) {
+      URL.revokeObjectURL(podcastUrlRef.current);
+      podcastUrlRef.current = null;
+    }
+  }
 
   useEffect(() => {
     return () => {
@@ -579,14 +570,12 @@ export default function Home() {
   const personalisedBriefing = useMemo(() => {
     if (!profile) return [] as BriefingItem[];
     return briefingItems.filter((item) => {
-      const muted = profile.negativeSignals.some((s) => item.topic.toLowerCase().includes(s.toLowerCase()));
+      const muted = profile.negativeSignals.some((s) =>
+        item.topic.toLowerCase().includes(s.toLowerCase()),
+      );
       return !muted;
     });
   }, [briefingItems, profile]);
-
-  const activeItem = selectedItemId
-    ? personalisedBriefing.find((b) => b.id === selectedItemId) ?? null
-    : null;
 
   const recommendedTools = useMemo(() => {
     if (!showQuizResults) return [] as Tool[];
@@ -615,25 +604,6 @@ export default function Home() {
       setProfile(draftProfile);
       setActiveSection("briefing");
     }
-  };
-
-  const handleSendChat = () => {
-    if (!chatInput.trim()) return;
-    const idBase = chatMessages.length ? chatMessages[chatMessages.length - 1].id + 1 : 1;
-    const userMessage: ChatMessage = {
-      id: idBase,
-      sender: "user",
-      text: chatInput.trim(),
-      relatedItemId: activeItem?.id,
-    };
-    const reply: ChatMessage = {
-      id: idBase + 1,
-      sender: "distill",
-      text: generateDistillReply(chatInput, profile, activeItem ?? undefined),
-      relatedItemId: activeItem?.id,
-    };
-    setChatMessages((prev) => [...prev, userMessage, reply]);
-    setChatInput("");
   };
 
   const handleToggleRequirement = (label: string) => {
@@ -684,6 +654,8 @@ export default function Home() {
       const el = podcastAudioRef.current;
       if (el) {
         el.src = url;
+        setPodcastCurrentTime(0);
+        setPodcastDuration(0);
         setPodcastReady(true);
         await el.play();
       }
@@ -695,7 +667,8 @@ export default function Home() {
   };
 
   /** Update topic preference from "This was useful" (boost) or "Not relevant" (mute), then persist. */
-  const handleTopicFeedback = async (topic: string, type: "muted" | "boosted") => {
+  const handleTopicFeedback = async (item: BriefingItem, type: "muted" | "boosted") => {
+    const topic = item.topic;
     if (!profile || !topic.trim()) return;
     const next = type === "muted"
       ? {
@@ -710,10 +683,21 @@ export default function Home() {
         };
     setProfile(next);
     try {
+      const payload = {
+        ...next,
+        feedback: activeRecommendationSessionId
+          ? {
+              sessionId: activeRecommendationSessionId,
+              articleId: item.id,
+              topic,
+              feedbackType: type,
+            }
+          : undefined,
+      };
       await fetch("/api/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(next),
+        body: JSON.stringify(payload),
         cache: "no-store",
       });
     } catch {
@@ -727,17 +711,11 @@ export default function Home() {
       <div className="mx-auto flex min-h-screen max-w-6xl flex-col px-4 pb-16 pt-10 sm:px-6 lg:px-8 lg:pt-12">
         <header className="mb-10 flex flex-col gap-4 sm:mb-12 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-slate-900/80 px-3 py-1 text-sm font-medium text-slate-300 ring-1 ring-slate-700/80">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-              Hackathon Prototype · March 7, 2026
-            </div>
             <h1 className="mt-4 text-3xl font-semibold tracking-tight text-slate-50 sm:text-4xl">
               Distill AI — your AI briefing, zero noise.
             </h1>
             <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-300 sm:text-base">
-              Drop in your role and comfort level — Distill cuts through the weekly AI
-              noise to show you the 2–3 updates that actually change how you work.
-              Ask it anything, or find the right tools for your life.
+              Distill cuts through the weekly AI noise to surface the updates that actually change how you work, plus tools worth trying.
             </p>
           </div>
           {profile && (
@@ -783,19 +761,6 @@ export default function Home() {
 
               {onboardingStep === 0 && (
                 <div className="space-y-6">
-                  <div>
-                    <label className="text-sm font-medium text-slate-200">
-                      What should Distill call you?
-                    </label>
-                    <input
-                      value={draftProfile.name}
-                      onChange={(e) =>
-                        setDraftProfile((p) => ({ ...p, name: e.target.value }))
-                      }
-                      placeholder="First name (optional)"
-                      className="mt-2 w-full rounded-2xl border border-slate-700/80 bg-slate-900/60 px-3 py-2.5 text-sm text-slate-50 placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500"
-                    />
-                  </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <label className="text-sm font-medium text-slate-200">
@@ -1032,7 +997,7 @@ export default function Home() {
                   </li>
                   <li>
                     <span className="mr-1 text-emerald-400">•</span>
-                    A chat where you can ask &quot;wait, what does this mean for me?&quot; in plain English.
+                    Plain-English summaries and why each update matters to your role.
                   </li>
                   <li>
                     <span className="mr-1 text-emerald-400">•</span>
@@ -1057,14 +1022,13 @@ export default function Home() {
               <nav className="flex flex-1 gap-2 rounded-full bg-slate-900/80 p-1 text-sm ring-1 ring-slate-700/80 sm:text-sm">
                 {[
                   { id: "briefing", label: "Your briefing" },
-                  { id: "chat", label: "Ask Distill" },
                   { id: "tools", label: "AI Tool Recommender" },
                 ].map((tab) => (
                   <button
                     key={tab.id}
                     type="button"
                     onClick={() =>
-                      setActiveSection(tab.id as "briefing" | "chat" | "tools")
+                      setActiveSection(tab.id as "briefing" | "tools")
                     }
                     className={`flex-1 rounded-full px-3 py-1.5 font-medium ${
                       activeSection === tab.id
@@ -1080,63 +1044,149 @@ export default function Home() {
             </div>
 
             {activeSection === "briefing" && (
-              <section className="grid flex-1 gap-6 md:grid-cols-[minmax(0,1.3fr),minmax(0,1fr)]">
-                <div className="md:col-span-2 flex flex-col gap-3 rounded-3xl bg-slate-900/80 p-4 ring-1 ring-slate-700/80 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-                  <div>
-                    <h3 className="text-sm font-semibold text-slate-50">🎙️ Listen to your briefing</h3>
-                    <p className="mt-1 text-sm text-slate-300">
-                      Two hosts, natural banter — Alex and Jordan walk through today&apos;s updates in a short, conversational episode. ~5 min.
-                    </p>
+              <section className="flex flex-1 flex-col gap-6">
+                <div className="flex flex-col gap-3 rounded-3xl bg-slate-900/80 p-4 ring-1 ring-slate-700/80 sm:p-5">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-slate-50">🎙️ Listen to your briefing</h3>
+                      <p className="mt-1 text-sm text-slate-300">
+                        Two hosts, natural banter — Alex and Jordan walk through today&apos;s updates in a short, conversational episode.
+                      </p>
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      {podcastReady && podcastDuration > 0
+                        ? `Total: ${formatTime(podcastDuration)}`
+                        : "Ready in ~a minute once generated"}
+                    </div>
                   </div>
                   <audio
                     ref={podcastAudioRef}
                     onPlay={() => setPodcastPlaying(true)}
                     onPause={() => setPodcastPlaying(false)}
-                    onEnded={() => setPodcastPlaying(false)}
-                  />
-                  <div className="flex flex-col items-end gap-1">
-                    <button
-                      type="button"
-                      disabled={podcastLoading || personalisedBriefing.length === 0}
-                      onClick={() => {
-                        if (podcastLoading) return;
-                        if (podcastPlaying) {
-                          podcastAudioRef.current?.pause();
-                        } else {
-                          const el = podcastAudioRef.current;
-                          if (podcastReady && el?.src) {
-                            void el.play();
-                          } else {
-                            handleStartPodcast();
-                          }
+                    onEnded={() => {
+                      setPodcastPlaying(false);
+                      setPodcastCurrentTime(0);
+                    }}
+                    onLoadedMetadata={() => {
+                      const el = podcastAudioRef.current;
+                      if (el && Number.isFinite(el.duration)) {
+                        setPodcastDuration(el.duration);
+                      }
+                    }}
+                    onTimeUpdate={() => {
+                      const el = podcastAudioRef.current;
+                      if (el) {
+                        setPodcastCurrentTime(el.currentTime);
+                        if (!podcastDuration && Number.isFinite(el.duration)) {
+                          setPodcastDuration(el.duration);
                         }
-                      }}
-                      className="shrink-0 inline-flex items-center gap-2 rounded-full bg-slate-700 px-5 py-2 text-sm font-semibold text-slate-100 shadow-md hover:bg-slate-600 disabled:opacity-60 disabled:pointer-events-none sm:text-sm"
-                    >
-                      {podcastLoading
-                        ? "Generating your podcast…"
-                        : podcastPlaying
-                          ? "⏸ Pause"
-                          : podcastReady
-                            ? "▶ Resume"
-                            : "▶ Play podcast"}
-                    </button>
-                    {podcastError && (
-                      <p className="text-xs text-amber-300">
-                        {podcastError}
-                        <button
-                          type="button"
-                          onClick={() => { setPodcastError(null); setPodcastReady(false); handleStartPodcast(); }}
-                          className="ml-1 underline"
-                        >
-                          Retry
-                        </button>
-                      </p>
-                    )}
+                      }
+                    }}
+                  />
+                  <div className="mt-1 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="inline-flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={podcastLoading || personalisedBriefing.length === 0}
+                        onClick={() => {
+                          if (podcastLoading) return;
+                          const el = podcastAudioRef.current;
+                          if (!el) return;
+                          if (!podcastReady || !el.src) {
+                            handleStartPodcast();
+                            return;
+                          }
+                          if (podcastPlaying) {
+                            el.pause();
+                          } else {
+                            void el.play();
+                          }
+                        }}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-50 text-slate-950 shadow-md shadow-slate-950/40 hover:bg-slate-200 disabled:pointer-events-none disabled:opacity-60"
+                      >
+                        {podcastLoading ? (
+                          <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
+                        ) : podcastPlaying ? (
+                          "❚❚"
+                        ) : (
+                          "▶"
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!podcastReady}
+                        onClick={() => {
+                          const el = podcastAudioRef.current;
+                          if (!el) return;
+                          el.currentTime = Math.max(0, el.currentTime - 15);
+                        }}
+                        className="inline-flex items-center gap-1 rounded-full border border-slate-700/80 px-3 py-1 text-xs font-medium text-slate-200 hover:border-slate-500 hover:bg-slate-800/70 disabled:pointer-events-none disabled:opacity-50"
+                      >
+                        ↺ 15s
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!podcastReady}
+                        onClick={() => {
+                          const el = podcastAudioRef.current;
+                          if (!el) return;
+                          const target = el.currentTime + 15;
+                          el.currentTime = podcastDuration ? Math.min(podcastDuration, target) : target;
+                        }}
+                        className="inline-flex items-center gap-1 rounded-full border border-slate-700/80 px-3 py-1 text-xs font-medium text-slate-200 hover:border-slate-500 hover:bg-slate-800/70 disabled:pointer-events-none disabled:opacity-50"
+                      >
+                        15s ↻
+                      </button>
+                    </div>
+                    <div className="flex flex-1 items-center gap-3">
+                      <span className="w-10 text-right text-xs tabular-nums text-slate-400">
+                        {formatTime(podcastCurrentTime)}
+                      </span>
+                      <input
+                        type="range"
+                        min={0}
+                        max={podcastDuration || 0}
+                        step={1}
+                        value={Math.min(podcastCurrentTime, podcastDuration || podcastCurrentTime)}
+                        onChange={(e) => {
+                          const next = Number(e.target.value);
+                          setPodcastCurrentTime(next);
+                          const el = podcastAudioRef.current;
+                          if (el && Number.isFinite(next)) {
+                            el.currentTime = next;
+                          }
+                        }}
+                        disabled={!podcastReady || !podcastDuration}
+                        className="flex-1 cursor-pointer accent-emerald-400 disabled:cursor-default"
+                      />
+                      <span className="w-12 text-xs tabular-nums text-slate-400 text-right">
+                        {podcastDuration
+                          ? `-${formatTime(Math.max(0, podcastDuration - podcastCurrentTime))}`
+                          : "-0:00"}
+                      </span>
+                    </div>
                   </div>
+                  {podcastError && (
+                    <p className="mt-1 text-xs text-amber-300">
+                      {podcastError}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPodcastError(null);
+                          setPodcastReady(false);
+                          setPodcastCurrentTime(0);
+                          setPodcastDuration(0);
+                          handleStartPodcast();
+                        }}
+                        className="ml-1 underline"
+                      >
+                        Retry
+                      </button>
+                    </p>
+                  )}
                 </div>
                 <div className="rounded-3xl bg-slate-900/80 p-5 ring-1 ring-slate-700/80 sm:p-6">
-                  <div className="mb-4 flex items-center justify-between gap-3">
+                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <h2 className="text-base font-semibold text-slate-50 sm:text-lg">
                         Here’s what matters today
@@ -1146,9 +1196,26 @@ export default function Home() {
                         {getIndustryLabel(profile.industry) || "your industry"} — tuned to your level.
                       </p>
                     </div>
-                    <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm font-medium text-emerald-300">
-                      {personalisedBriefing.length || 3} items · ~10 minutes
-                    </span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={briefingLoading || !profile}
+                        onClick={handleRefreshBriefingFeed}
+                        title="Fetch a new set of stories (podcast will use the new list after refresh)"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-600 bg-slate-800/80 px-3 py-1.5 text-sm font-medium text-slate-200 hover:border-slate-500 hover:bg-slate-700/80 disabled:opacity-50 disabled:pointer-events-none"
+                      >
+                        <span
+                          className={`inline-block ${briefingLoading ? "animate-spin" : ""}`}
+                          aria-hidden
+                        >
+                          ↻
+                        </span>
+                        Refresh feed
+                      </button>
+                      <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm font-medium text-emerald-300">
+                        {Math.min(personalisedBriefing.length || 0, VISIBLE_BRIEFING_LIMIT) || 3} items · ~10 minutes
+                      </span>
+                    </div>
                   </div>
                   {briefingLoading && (
                     <p className="text-sm text-slate-300">
@@ -1167,38 +1234,26 @@ export default function Home() {
                   )}
                   {!briefingLoading && personalisedBriefing.length > 0 && (
                     <div className="space-y-4">
-                      {personalisedBriefing.map((item, index) => (
+                      {personalisedBriefing.slice(0, VISIBLE_BRIEFING_LIMIT).map((item, index) => (
                         <article
                           key={item.id}
                           className="rounded-2xl border border-slate-700/80 bg-slate-900/60 p-4 text-sm leading-relaxed"
                         >
-                          <div className="mb-1 flex items-center justify-between gap-3">
-                            <div className="inline-flex items-center gap-2 text-sm text-slate-400">
-                              <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-sm text-slate-200">
-                                {index + 1}
+                          <div className="mb-1 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-sm text-slate-200">
+                              {index + 1}
+                            </span>
+                            <span>{item.topic}</span>
+                            {item.source && (
+                              <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] uppercase tracking-wide">
+                                {item.source}
                               </span>
-                              <span>{item.topic}</span>
-                              {item.source && (
-                                <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] uppercase tracking-wide">
-                                  {item.source}
-                                </span>
-                              )}
-                              {item.published && (
-                                <span className="text-slate-500">
-                                  {formatDate(item.published)}
-                                </span>
-                              )}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedItemId(item.id);
-                                setActiveSection("chat");
-                              }}
-                              className="rounded-full bg-slate-800 px-3 py-1 text-sm text-slate-100 hover:bg-slate-700"
-                            >
-                              Ask Distill about this
-                            </button>
+                            )}
+                            {item.published && (
+                              <span className="text-slate-500">
+                                {formatDate(item.published)}
+                              </span>
+                            )}
                           </div>
                           <div className="flex items-start justify-between gap-2">
                             <h3 className="text-sm font-semibold text-slate-50">
@@ -1225,17 +1280,19 @@ export default function Home() {
                           <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-slate-400">
                             <button
                               type="button"
-                              onClick={() => handleTopicFeedback(item.topic, "boosted")}
-                              className="rounded-full bg-slate-800 px-3 py-1 hover:bg-slate-700"
+                              onClick={() => handleTopicFeedback(item, "boosted")}
+                              className="inline-flex items-center gap-1 rounded-full bg-slate-800 px-3 py-1 hover:bg-slate-700"
                             >
-                              This was useful
+                              <span aria-hidden>👍</span>
+                              <span className="sr-only">Thumbs up</span>
                             </button>
                             <button
                               type="button"
-                              onClick={() => handleTopicFeedback(item.topic, "muted")}
-                              className="rounded-full bg-slate-900 px-3 py-1 ring-1 ring-slate-700 hover:bg-slate-800"
+                              onClick={() => handleTopicFeedback(item, "muted")}
+                              className="inline-flex items-center gap-1 rounded-full bg-slate-900 px-3 py-1 ring-1 ring-slate-700 hover:bg-slate-800"
                             >
-                              Not relevant
+                              <span aria-hidden>👎</span>
+                              <span className="sr-only">Thumbs down</span>
                             </button>
                             {item.link && (
                               <a
@@ -1252,159 +1309,6 @@ export default function Home() {
                       ))}
                     </div>
                   )}
-                </div>
-
-                <div className="rounded-3xl bg-slate-900/80 p-4 text-sm text-slate-300 ring-1 ring-slate-700/80">
-                  <p className="font-medium text-slate-100">
-                    One thing to try this week
-                  </p>
-                  <p className="mt-1">
-                    Don&apos;t try to &quot;learn AI&quot; all at once. Pick one meeting, one
-                    doc, or one email where you think AI could help — and just
-                    try it there. That&apos;s your whole experiment for the week.
-                  </p>
-                </div>
-              </section>
-            )}
-
-            {activeSection === "chat" && (
-              <section className="grid flex-1 gap-6 md:grid-cols-[minmax(0,1.1fr),minmax(0,1fr)]">
-                <div className="flex flex-col rounded-3xl bg-slate-900/80 p-5 ring-1 ring-slate-700/80 sm:p-6">
-                  <div className="mb-3">
-                    <h2 className="text-base font-semibold text-slate-50 sm:text-lg">
-                      Got questions? Ask Distill anything.
-                    </h2>
-                    <p className="mt-1 text-sm text-slate-400">
-                      No jargon, no judgment. &quot;What does this mean for my job?&quot; is
-                      a great place to start.
-                    </p>
-                  </div>
-                  <div className="flex-1 space-y-3 overflow-y-auto rounded-2xl bg-slate-950/60 p-3 text-sm leading-relaxed sm:p-4 sm:text-base">
-                    {chatMessages.length === 0 && (
-                      <div className="rounded-2xl border border-dashed border-slate-700/80 bg-slate-900/60 p-4 text-sm leading-relaxed text-slate-300">
-                        <p>
-                          Try asking:{" "}
-                          <span className="font-medium text-slate-100">
-                            &quot;Where should I start with AI given my role?&quot;
-                          </span>{" "}
-                          or{" "}
-                          <span className="font-medium text-slate-100">
-                            &quot;Explain the first briefing item like I&apos;m brand new to
-                            AI.&quot;
-                          </span>
-                        </p>
-                      </div>
-                    )}
-                    {chatMessages.map((msg) => (
-                      <div
-                        key={msg.id}
-                        className={`flex ${
-                          msg.sender === "user" ? "justify-end" : "justify-start"
-                        }`}
-                      >
-                        <div
-                          className={`max-w-[80%] rounded-2xl px-3 py-2 ${
-                            msg.sender === "user"
-                              ? "bg-emerald-500 text-slate-950"
-                              : "bg-slate-800 text-slate-50"
-                          }`}
-                        >
-                          {msg.text}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-3 flex items-end gap-2">
-                    <textarea
-                      rows={2}
-                      value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      placeholder="Ask Distill a question in plain English..."
-                      className="min-h-[48px] flex-1 resize-none rounded-2xl border border-slate-700/80 bg-slate-950/60 px-3 py-2 text-sm text-slate-50 placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none focus:ring-1 focus:ring-emerald-500 sm:text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleSendChat}
-                      className="inline-flex h-10 items-center justify-center rounded-2xl bg-emerald-500 px-3 text-sm font-semibold text-slate-950 shadow-md shadow-emerald-500/40 hover:bg-emerald-400 sm:px-4 sm:text-sm"
-                    >
-                      Send
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="rounded-3xl bg-slate-900/80 p-5 ring-1 ring-slate-700/80 sm:p-6">
-                    <h3 className="text-sm font-semibold text-slate-50">
-                      Context Distill already knows
-                    </h3>
-                    <ul className="mt-2 space-y-1 text-sm leading-relaxed text-slate-300">
-                      <li>
-                        <span className="mr-1 text-emerald-400">•</span>
-                        Your role: {getRoleLabel(profile.role) || "not set"}
-                      </li>
-                      <li>
-                        <span className="mr-1 text-emerald-400">•</span>
-                        Industry: {getIndustryLabel(profile.industry) || "not set"}
-                      </li>
-                      <li>
-                        <span className="mr-1 text-emerald-400">•</span>
-                        Depth:{" "}
-                        {DEPTH_OPTIONS.find((d) => d.value === profile.depth)?.label ?? profile.depth}
-                      </li>
-                      <li>
-                        <span className="mr-1 text-emerald-400">•</span>
-                        Seniority:{" "}
-                        {SENIORITY_OPTIONS.find((s) => s.value === profile.seniority)?.label ?? profile.seniority}
-                      </li>
-                      <li>
-                        <span className="mr-1 text-emerald-400">•</span>
-                        Goal:{" "}
-                        {GOAL_OPTIONS.find((o) => o.value === profile.goals[0])?.label ?? profile.goals[0] ?? "not set"}
-                      </li>
-                    </ul>
-                    <p className="mt-3 text-sm text-slate-400">
-                      You don’t need to re‑explain this each time — Distill carries
-                      it through the conversation.
-                    </p>
-                  </div>
-                  <div className="rounded-3xl bg-slate-900/80 p-5 ring-1 ring-slate-700/80 sm:p-6">
-                    <h3 className="text-sm font-semibold text-slate-50">
-                      Jump in from a briefing item
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-300">
-                      Choose something from today’s briefing to ask about:
-                    </p>
-                    <div className="mt-3 space-y-2">
-                      {personalisedBriefing.map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => {
-                            setSelectedItemId(item.id);
-                            const seed: ChatMessage = {
-                              id: chatMessages.length
-                                ? chatMessages[chatMessages.length - 1].id + 1
-                                : 1,
-                              sender: "distill",
-                              text: `You tapped into: "${item.title}". Ask me what this really means for your work or how you could test it this week.`,
-                              relatedItemId: item.id,
-                            };
-                            setChatMessages((prev) => [...prev, seed]);
-                          }}
-                          className={`w-full rounded-2xl border px-3 py-2 text-left text-sm sm:text-sm ${
-                            selectedItemId === item.id
-                              ? "border-emerald-400 bg-emerald-500/10 text-emerald-100"
-                              : "border-slate-700/80 bg-slate-900/60 text-slate-100 hover:border-slate-500"
-                          }`}
-                        >
-                          <span className="block font-medium">{item.title}</span>
-                          <span className="mt-1 block text-sm text-slate-400">
-                            {item.topic}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               </section>
             )}

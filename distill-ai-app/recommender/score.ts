@@ -242,7 +242,10 @@ export function scoreArticle(
   }
 
   // Technology / Software gets a small blanket boost — AI news is always on-topic
-  if (profile.industry === "Technology / Software") {
+  if (
+    profile.industry === "Technology / Software" ||
+    profile.industry === "technology"
+  ) {
     factors.push({ factor: "industry:tech — always relevant", points: 6 });
   }
 

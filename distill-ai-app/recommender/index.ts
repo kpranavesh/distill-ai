@@ -26,6 +26,43 @@ export function recommend(
 }
 
 /**
+ * Same as recommend, but skips article IDs in excludeIds first (for “show me more”).
+ * If fewer than topN remain unseen, fills from the full ranked list so the user
+ * always gets a full briefing (may include lower-ranked or previously seen items).
+ */
+export function recommendWithExclusions(
+  profile: UserProfile,
+  articles: Article[],
+  excludeIds: string[],
+  topN = 8,
+): ScoredArticle[] {
+  const exclude = new Set(excludeIds.filter(Boolean));
+  const scored = articles
+    .map((article) => {
+      const { score, breakdown } = scoreArticle(profile, article);
+      return { ...article, score, scoreBreakdown: breakdown };
+    })
+    .sort((a, b) => b.score - a.score);
+
+  const out: ScoredArticle[] = [];
+  for (const a of scored) {
+    if (exclude.has(a.id)) continue;
+    out.push(a);
+    if (out.length >= topN) break;
+  }
+  if (out.length < topN) {
+    const used = new Set(out.map((x) => x.id));
+    for (const a of scored) {
+      if (used.has(a.id)) continue;
+      out.push(a);
+      used.add(a.id);
+      if (out.length >= topN) break;
+    }
+  }
+  return out;
+}
+
+/**
  * Explain why a specific article was recommended for a user.
  * Useful for debugging and for showing users "why you're seeing this".
  */

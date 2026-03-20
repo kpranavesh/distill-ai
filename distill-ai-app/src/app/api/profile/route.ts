@@ -99,6 +99,17 @@ export async function POST(req: Request) {
   const negativeSignals = Array.isArray(body.negativeSignals) ? body.negativeSignals.filter((t: unknown) => typeof t === "string") : [];
   const aiTools = Array.isArray(body.aiTools) ? body.aiTools.filter((t: unknown) => typeof t === "string") : [];
   const topicsBoosted = Array.isArray(body.topicsBoosted) ? body.topicsBoosted.filter((t: unknown) => typeof t === "string") : [];
+  const feedback = body?.feedback && typeof body.feedback === "object" ? body.feedback : null;
+
+  const feedbackSessionId =
+    feedback && typeof feedback.sessionId === "string" ? feedback.sessionId : null;
+  const feedbackTopic = feedback && typeof feedback.topic === "string" ? feedback.topic : null;
+  const feedbackArticleId =
+    feedback && typeof feedback.articleId === "string" ? feedback.articleId : null;
+  const feedbackType =
+    feedback && (feedback.feedbackType === "boosted" || feedback.feedbackType === "muted")
+      ? feedback.feedbackType
+      : null;
 
   // Map depth → legacy comfort values to satisfy the DB check constraint
   const depthToComfort: Record<string, string> = {
@@ -132,6 +143,25 @@ export async function POST(req: Request) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // Optional: persist user preference feedback events tied to a recommendation session.
+  if (feedbackSessionId && feedbackTopic && feedbackType) {
+    try {
+      const { error: fbErr } = await supabase.from("preference_feedback_events").insert({
+        user_id: user.id,
+        session_id: feedbackSessionId,
+        article_id: feedbackArticleId,
+        topic: feedbackTopic,
+        feedback_type: feedbackType,
+        client_context: {},
+      });
+      if (fbErr) {
+        console.error("[profile] Failed to persist feedback event:", fbErr);
+      }
+    } catch (e) {
+      console.error("[profile] Failed to persist feedback event:", e);
+    }
   }
 
   return NextResponse.json({ ok: true });

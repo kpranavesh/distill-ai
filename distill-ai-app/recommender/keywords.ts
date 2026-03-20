@@ -59,7 +59,29 @@ export const INDUSTRY_KEYWORDS: Record<string, string[]> = {
     "regulation", "compliance", "fraud", "risk", "insurance",
     "sec", "fdic", "wealth management",
   ],
+  // Aliases for onboarding values (slugs)
+  "financial-services": [
+    "finance", "fintech", "banking", "investment", "trading",
+    "regulation", "compliance", "fraud", "risk", "insurance",
+    "sec", "fdic", "wealth management",
+  ],
+  "Technology / Software": [
+    // Keeping this aligned with the onboarding "technology" value.
+    "software", "saas", "platform", "api", "sdk", "dev", "developer",
+    "cloud", "infrastructure", "engineering", "backend", "frontend",
+    "data", "ml", "ai", "machine learning", "llm", "model",
+  ],
+  "technology": [
+    "software", "saas", "platform", "api", "sdk", "dev", "developer",
+    "cloud", "infrastructure", "engineering", "backend", "frontend",
+    "data", "ml", "ai", "machine learning", "llm", "model",
+  ],
   "Healthcare / Life Sciences": [
+    "health", "healthcare", "medical", "clinical", "fda", "pharma",
+    "drug discovery", "biotech", "patient", "diagnosis", "radiology",
+    "ehr", "hipaa", "life sciences",
+  ],
+  "healthcare": [
     "health", "healthcare", "medical", "clinical", "fda", "pharma",
     "drug discovery", "biotech", "patient", "diagnosis", "radiology",
     "ehr", "hipaa", "life sciences",
@@ -67,6 +89,11 @@ export const INDUSTRY_KEYWORDS: Record<string, string[]> = {
   "Consulting / Professional Services": [
     "consulting", "advisory", "strategy", "professional services",
     "law", "legal", "accounting", "audit", "tax", "management consulting",
+  ],
+  "professional-services": [
+    "consulting", "advisory", "strategy", "professional services",
+    "law", "legal", "accounting", "audit", "tax", "management consulting",
+    "compliance", "risk",
   ],
   "Media / Marketing / Creative": [
     "marketing", "advertising", "content", "creative", "media",
@@ -78,7 +105,21 @@ export const INDUSTRY_KEYWORDS: Record<string, string[]> = {
     "creator", "influencer", "content creation", "narrative",
     "intellectual property", "copyright", "licensing",
   ],
+  "media": [
+    "marketing", "advertising", "content", "creative", "media",
+    "brand", "campaign", "social media", "seo", "copywriting",
+    "image generation", "video", "design", "figma", "adobe",
+    "entertainment", "film", "music", "streaming", "production",
+    "studio", "animation", "visual", "generative art", "sora",
+    "intellectual property", "copyright",
+  ],
   "Education / Research": [
+    "education", "university", "research", "academic", "students",
+    "learning", "edtech", "curriculum", "tutoring", "paper", "arxiv",
+    "higher education", "k-12", "school", "classroom", "faculty",
+    "plagiarism", "academic integrity", "ferpa", "student data",
+  ],
+  "education": [
     "education", "university", "research", "academic", "students",
     "learning", "edtech", "curriculum", "tutoring", "paper", "arxiv",
     "higher education", "k-12", "school", "classroom", "faculty",
@@ -88,12 +129,32 @@ export const INDUSTRY_KEYWORDS: Record<string, string[]> = {
     "retail", "ecommerce", "e-commerce", "consumer", "shopping",
     "recommendation", "personalization", "customer", "supply chain",
   ],
+  "retail": [
+    "retail", "ecommerce", "e-commerce", "consumer", "shopping",
+    "recommendation", "personalization", "customer", "supply chain",
+  ],
   "Government / Public Sector": [
+    "government", "public sector", "federal", "policy", "regulation",
+    "nonprofit", "ngo", "civic", "democracy", "national security",
+  ],
+  "government": [
     "government", "public sector", "federal", "policy", "regulation",
     "nonprofit", "ngo", "civic", "democracy", "national security",
   ],
   "Manufacturing / Industrial": [
     "manufacturing", "industrial", "robotics", "automation", "supply chain",
     "logistics", "energy", "hardware", "factory", "iot",
+  ],
+  "manufacturing": [
+    "manufacturing", "industrial", "robotics", "automation", "supply chain",
+    "logistics", "energy", "hardware", "factory", "iot",
+  ],
+  "Nonprofit / Social impact": [
+    "nonprofit", "ngo", "foundation", "charity", "social impact",
+    "community", "volunteer", "program", "grant", "impact",
+  ],
+  "nonprofit": [
+    "nonprofit", "ngo", "foundation", "charity", "social impact",
+    "community", "volunteer", "program", "grant", "impact",
   ],
 };

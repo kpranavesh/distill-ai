@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Distill AI — Your AI Briefing",
   description:
-    "Distill AI is your personalized AI briefing: three updates that actually matter to your work, plus a friendly chat and tailored AI tool recommendations.",
+    "Distill AI is your personalized AI briefing: updates that matter to your work, optional audio overview, and tailored AI tool recommendations.",
 };
 
 export default function RootLayout({
